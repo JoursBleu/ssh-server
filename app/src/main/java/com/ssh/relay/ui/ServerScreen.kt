@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,11 +49,6 @@ fun ServerScreen() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
-    val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-    var isBatteryOptimized by remember {
-        mutableStateOf(!pm.isIgnoringBatteryOptimizations(context.packageName))
-    }
-
     // Poll server state every 500ms
     var serverState by remember { mutableStateOf(SshServerService.serverState) }
     var lastError by remember { mutableStateOf(SshServerService.lastError) }
@@ -65,7 +59,6 @@ fun ServerScreen() {
             serverState = SshServerService.serverState
             lastError = SshServerService.lastError
             sessions = SshServerService.activeSessions
-            isBatteryOptimized = !pm.isIgnoringBatteryOptimizations(context.packageName)
             kotlinx.coroutines.delay(500)
         }
     }
@@ -99,9 +92,7 @@ fun ServerScreen() {
 
     val settingsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) {
-        isBatteryOptimized = !pm.isIgnoringBatteryOptimizations(context.packageName)
-    }
+    ) { }
 
     Column(
         modifier = Modifier
@@ -112,57 +103,26 @@ fun ServerScreen() {
     ) {
         Text("SSH Server", style = MaterialTheme.typography.headlineMedium)
 
-        // Background keep-alive tips (merged battery optimization + manufacturer tips)
+        // Background keep-alive tips
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isBatteryOptimized) MaterialTheme.colorScheme.errorContainer
-                    else MaterialTheme.colorScheme.tertiaryContainer
-            )
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Warning, null,
-                        tint = if (isBatteryOptimized) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.tertiary
-                    )
+                    Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.tertiary)
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        "后台保活设置",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (isBatteryOptimized) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.tertiary
-                    )
+                    Text("后台保活设置", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.tertiary)
                 }
                 Spacer(Modifier.height(4.dp))
-
-                if (isBatteryOptimized) {
-                    Text(
-                        "⚠ 电池优化未关闭，切到后台后 SSH 连接可能中断",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.height(4.dp))
-                }
-
                 Text(
-                    "华为/荣耀：设置 → 应用启动管理 → 手动管理 → 全部开启\n" +
+                    "华为/荣耀：设置 → 应用启动管理 → 手动管理 → 允许后台活动\n" +
                     "小米/红米：设置 → 省电策略 → 无限制\n" +
                     "OPPO/vivo：设置 → 电池 → 允许后台运行",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (isBatteryOptimized) {
-                        OutlinedButton(onClick = {
-                            settingsLauncher.launch(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = Uri.parse("package:${context.packageName}")
-                            })
-                        }) {
-                            Text("关闭电池优化")
-                        }
-                    }
                     OutlinedButton(onClick = { tryOpenBackgroundSettings(context) }) {
                         Icon(Icons.Default.Settings, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -311,14 +271,6 @@ fun ServerScreen() {
                         if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                             notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
-                    }
-
-                    if (isBatteryOptimized) {
-                        try {
-                            context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = Uri.parse("package:${context.packageName}")
-                            })
-                        } catch (_: Exception) {}
                     }
 
                     val p = port.toIntOrNull() ?: 2222
