@@ -139,21 +139,10 @@ fun ServerScreen() {
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { tryOpenBackgroundSettings(context) }) {
-                        Icon(Icons.Default.Settings, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("后台设置")
-                    }
-                    OutlinedButton(onClick = {
-                        settingsLauncher.launch(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        })
-                    }) {
-                        Icon(Icons.Default.Settings, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("应用详情")
-                    }
+                OutlinedButton(onClick = { tryOpenBackgroundSettings(context) }) {
+                    Icon(Icons.Default.Settings, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("后台设置")
                 }
             }
         }
