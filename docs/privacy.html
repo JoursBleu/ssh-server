@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Server - Privacy Policy / 隐私政策</title>
+    <style>
+        :root {
+            --bg: #ffffff; --fg: #1a1a2e; --muted: #555; --border: #e0e0e0;
+            --accent: #0066cc; --card-bg: #f8f9fa;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --border: #30363d;
+                --accent: #58a6ff; --card-bg: #161b22;
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+            background: var(--bg); color: var(--fg); line-height: 1.8;
+        }
+        .container { max-width: 800px; margin: 0 auto; padding: 40px 24px; }
+        h1 { font-size: 28px; margin-bottom: 8px; }
+        .subtitle { color: var(--muted); margin-bottom: 32px; font-size: 14px; }
+        h2 { font-size: 20px; margin: 32px 0 12px; color: var(--accent); }
+        p, li { margin-bottom: 8px; color: var(--fg); }
+        ul { padding-left: 24px; }
+        .highlight {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 8px; padding: 16px 20px; margin: 16px 0;
+        }
+        .lang-switch {
+            display: inline-flex; gap: 8px; margin-bottom: 24px;
+            background: var(--card-bg); border-radius: 8px; padding: 4px;
+            border: 1px solid var(--border);
+        }
+        .lang-switch button {
+            padding: 6px 16px; border: none; border-radius: 6px;
+            cursor: pointer; font-size: 14px;
+            background: transparent; color: var(--muted);
+        }
+        .lang-switch button.active {
+            background: var(--accent); color: #fff;
+        }
+        a { color: var(--accent); }
+        .section { display: none; }
+        .section.active { display: block; }
+        footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="lang-switch">
+        <button id="btn-zh" class="active" onclick="switchLang('zh')">中文</button>
+        <button id="btn-en" onclick="switchLang('en')">English</button>
+    </div>
+
+    <!-- 中文版 -->
+    <div id="zh" class="section active">
+        <h1>隐私政策</h1>
+        <p class="subtitle">最后更新：2026 年 3 月 14 日</p>
+
+        <div class="highlight">
+            <strong>简要说明：</strong>SSH Server 不收集、不存储、不传输任何用户数据。应用完全在本地运行，不联网，不包含任何分析 SDK 或广告 SDK。
+        </div>
+
+        <h2>1. 应用简介</h2>
+        <p>SSH Server（以下简称"本应用"）是一款开源的 Android SSH 服务器应用，用于在 Android 设备上运行 SSH 服务。</p>
+        <p>开源地址：<a href="https://github.com/JoursBleu/ssh-server">github.com/JoursBleu/ssh-server</a></p>
+
+        <h2>2. 数据收集</h2>
+        <p><strong>本应用不收集任何个人信息。</strong></p>
+        <ul>
+            <li>不收集设备信息（IMEI、设备ID等）</li>
+            <li>不收集位置信息</li>
+            <li>不收集通讯录、短信、通话记录</li>
+            <li>不收集应用使用数据或行为数据</li>
+            <li>不包含任何第三方分析工具（如 Firebase Analytics、友盟等）</li>
+            <li>不包含任何广告 SDK</li>
+        </ul>
+
+        <h2>3. 网络访问</h2>
+        <p>本应用需要网络权限，仅用于以下目的：</p>
+        <ul>
+            <li>在本地网络（局域网）上监听 SSH 连接请求</li>
+            <li>为 SSH 端口转发功能提供网络通信</li>
+        </ul>
+        <p>本应用<strong>不会主动向任何外部服务器发起网络请求</strong>，不上传任何数据。</p>
+
+        <h2>4. 本地存储</h2>
+        <p>本应用在设备本地存储以下数据：</p>
+        <ul>
+            <li><strong>SSH 主机密钥</strong>：首次启动时生成的 RSA 密钥对，存储在应用私有目录</li>
+            <li><strong>授权公钥</strong>：用户手动导入的 SSH 公钥（authorized_keys）</li>
+            <li><strong>用户设置</strong>：端口号、认证方式等配置信息</li>
+        </ul>
+        <p>以上数据均存储在应用私有目录中，卸载应用时自动删除。</p>
+
+        <h2>5. 权限说明</h2>
+        <ul>
+            <li><strong>网络访问（INTERNET）</strong>：SSH 服务器监听和端口转发所需</li>
+            <li><strong>前台服务（FOREGROUND_SERVICE）</strong>：保持 SSH 服务在后台稳定运行</li>
+            <li><strong>开机自启（RECEIVE_BOOT_COMPLETED）</strong>：可选功能，用于开机自动启动 SSH 服务</li>
+        </ul>
+
+        <h2>6. 数据安全</h2>
+        <p>本应用采用以下安全措施：</p>
+        <ul>
+            <li>SSH 连接使用标准 SSH2 协议加密</li>
+            <li>支持 RSA 3072 位密钥</li>
+            <li>密钥文件存储在 Android 应用沙箱中，其他应用无法访问</li>
+            <li>使用 BouncyCastle 密码学库提供加密支持</li>
+        </ul>
+
+        <h2>7. 第三方服务</h2>
+        <p>本应用不集成任何第三方服务、SDK 或数据追踪工具。</p>
+
+        <h2>8. 儿童隐私</h2>
+        <p>本应用不面向 13 岁以下儿童，不会故意收集儿童的个人信息。</p>
+
+        <h2>9. 隐私政策变更</h2>
+        <p>如本隐私政策有更新，将在本页面发布。建议您定期查看。</p>
+
+        <h2>10. 联系方式</h2>
+        <p>如有任何隐私相关问题，请通过以下方式联系：</p>
+        <ul>
+            <li>GitHub Issues：<a href="https://github.com/JoursBleu/ssh-server/issues">github.com/JoursBleu/ssh-server/issues</a></li>
+        </ul>
+    </div>
+
+    <!-- English version -->
+    <div id="en" class="section">
+        <h1>Privacy Policy</h1>
+        <p class="subtitle">Last updated: March 14, 2026</p>
+
+        <div class="highlight">
+            <strong>TL;DR:</strong> SSH Server does not collect, store, or transmit any user data. The app runs entirely locally, does not connect to the internet on its own, and contains no analytics or advertising SDKs.
+        </div>
+
+        <h2>1. About the App</h2>
+        <p>SSH Server ("the App") is an open-source Android application that runs an SSH server on your Android device.</p>
+        <p>Source code: <a href="https://github.com/JoursBleu/ssh-server">github.com/JoursBleu/ssh-server</a></p>
+
+        <h2>2. Data Collection</h2>
+        <p><strong>The App does not collect any personal information.</strong></p>
+        <ul>
+            <li>No device identifiers (IMEI, device ID, etc.)</li>
+            <li>No location data</li>
+            <li>No contacts, messages, or call logs</li>
+            <li>No usage or behavior analytics</li>
+            <li>No third-party analytics tools (Firebase, etc.)</li>
+            <li>No advertising SDKs</li>
+        </ul>
+
+        <h2>3. Network Access</h2>
+        <p>The App requires network permission solely for:</p>
+        <ul>
+            <li>Listening for incoming SSH connections on the local network</li>
+            <li>Providing SSH port forwarding functionality</li>
+        </ul>
+        <p>The App <strong>never initiates outbound connections to any external server</strong> and does not upload any data.</p>
+
+        <h2>4. Local Storage</h2>
+        <p>The App stores the following data locally on your device:</p>
+        <ul>
+            <li><strong>SSH host keys</strong>: RSA key pair generated on first launch, stored in the app's private directory</li>
+            <li><strong>Authorized keys</strong>: SSH public keys manually imported by the user</li>
+            <li><strong>User settings</strong>: Port number, authentication preferences, etc.</li>
+        </ul>
+        <p>All data is stored in the app's private directory and is automatically deleted when the app is uninstalled.</p>
+
+        <h2>5. Permissions</h2>
+        <ul>
+            <li><strong>INTERNET</strong>: Required for SSH server listening and port forwarding</li>
+            <li><strong>FOREGROUND_SERVICE</strong>: Keeps the SSH service running reliably in the background</li>
+            <li><strong>RECEIVE_BOOT_COMPLETED</strong>: Optional, for auto-starting SSH service on device boot</li>
+        </ul>
+
+        <h2>6. Data Security</h2>
+        <ul>
+            <li>All SSH connections are encrypted using the standard SSH2 protocol</li>
+            <li>RSA 3072-bit keys are used</li>
+            <li>Key files are stored in the Android app sandbox, inaccessible to other apps</li>
+            <li>Cryptographic operations are provided by BouncyCastle</li>
+        </ul>
+
+        <h2>7. Third-Party Services</h2>
+        <p>The App does not integrate any third-party services, SDKs, or tracking tools.</p>
+
+        <h2>8. Children's Privacy</h2>
+        <p>The App is not directed at children under 13 and does not knowingly collect personal information from children.</p>
+
+        <h2>9. Changes to This Policy</h2>
+        <p>Any updates to this privacy policy will be posted on this page.</p>
+
+        <h2>10. Contact</h2>
+        <p>For privacy-related questions, please contact us via:</p>
+        <ul>
+            <li>GitHub Issues: <a href="https://github.com/JoursBleu/ssh-server/issues">github.com/JoursBleu/ssh-server/issues</a></li>
+        </ul>
+    </div>
+
+    <footer>
+        <p>SSH Server — <a href="https://github.com/JoursBleu/ssh-server">Open Source</a> — Apache 2.0 License</p>
+    </footer>
+</div>
+<script>
+function switchLang(lang) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.lang-switch button').forEach(b => b.classList.remove('active'));
+    document.getElementById(lang).classList.add('active');
+    document.getElementById('btn-' + lang).classList.add('active');
+}
+</script>
+</body>
+</html>
