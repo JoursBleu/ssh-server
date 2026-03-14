@@ -1,113 +1,8 @@
 # SSH Server
 
-Android SSH Server app powered by Apache MINA SSHD.
+基于 Apache MINA SSHD 的 Android SSH 服务器应用。
 
 [中文](#中文) | [English](#english)
-
----
-
-## English
-
-### Features
-
-- **SSH Server** — Run a full SSH server on your Android device
-- **Jump Host** — Use your phone as an SSH jump host (`ssh -J`)
-- **SFTP** — Built-in SFTP subsystem for file transfer
-- **PTY** — Full interactive terminal with native PTY support (with ProcessBuilder fallback)
-- **Public Key Auth** — Manage authorized keys in-app, supports `ssh-copy-id`
-- **Password Auth** — Optional password authentication (disabled when password is empty)
-- **Persistent Host Key** — Server host key generated once and persisted across restarts
-- **Background Service** — Foreground service with WakeLock + WifiLock + NetworkCallback, survives app switch and screen off
-- **Boot Auto-Start** — Optionally start SSH server on device boot
-- **Port Conflict Recovery** — Auto-detects and releases stale port bindings on startup
-- **Session Tracking** — Real-time display of active SSH sessions with keepalive
-- **Configurable Shell** — Custom home directory and shell path (supports Termux shells)
-- **i18n** — Chinese / English UI with runtime language switching
-- **Settings** — Shell config, boot auto-start, language switch, app info
-- **Clean Uninstall** — All data (keys, settings, authorized_keys) removed on uninstall
-
-### Screenshots
-
-The app has 3 tabs:
-- **Server** — Start/stop server, view status with green/gray indicators, active sessions, config (port/user/password), host key fingerprint, language switch
-- **Keys** — Manage authorized SSH public keys with add/delete/copy, comment support
-- **Settings** — Shell path & home dir, boot auto-start toggle, language switch, about info
-
-### Usage
-
-1. Install the APK on your Android device
-2. Open the app, configure username/password/port (default: `red` / empty / `2222`)
-3. Tap **Start Server**
-4. Connect from your computer:
-
-```bash
-# Password auth (if password is set)
-ssh -p 2222 red@<phone-ip>
-
-# Key auth
-ssh-copy-id -p 2222 red@<phone-ip>
-ssh -p 2222 red@<phone-ip>
-
-# Use as jump host
-ssh -J red@<phone-ip>:2222 user@target-host
-
-# SFTP
-sftp -P 2222 red@<phone-ip>
-```
-
-### Tech Stack
-
-| Component | Version |
-|-----------|---------|
-| Apache MINA SSHD | 2.17.1 |
-| BouncyCastle | 1.80 |
-| Jetpack Compose + Material 3 | BOM 2024.12.01 |
-| Kotlin | 2.1.0 |
-| Android SDK | 35 (min 26) |
-| NDK / CMake | 27 / 3.22.1 |
-
-### Project Structure
-
-```
-app/src/main/java/com/ssh/relay/
-├── SshServerApp.kt              # Application init (BouncyCastle, MINA Android mode)
-├── engine/
-│   ├── SshServerEngine.kt       # SSH server core (auth, shell, SFTP, forwarding, keepalive)
-│   ├── SshClientEngine.kt       # SSH client engine
-│   ├── AuthorizedKeysManager.kt # authorized_keys file management
-│   └── PortChecker.kt           # Port availability check & stale port release
-├── service/
-│   ├── SshServerService.kt      # Foreground service with WakeLock/WifiLock/NetworkCallback
-│   └── BootReceiver.kt          # Boot auto-start receiver
-├── shell/
-│   ├── AndroidShellFactory.kt   # Shell factory
-│   ├── AndroidShellCommand.kt   # PTY + ProcessBuilder shell (configurable path)
-│   ├── AndroidCommandFactory.kt # Exec channel factory (ssh-copy-id support)
-│   ├── AndroidExecCommand.kt    # Exec command with path rewriting
-│   └── PtyCompat.kt             # JNI PTY bridge
-├── ui/
-│   ├── MainActivity.kt          # Entry activity with language provider
-│   ├── Navigation.kt            # 3-tab navigation (Server/Keys/Settings)
-│   ├── ServerScreen.kt          # Server control, status, sessions, fingerprint
-│   ├── KeysScreen.kt            # Authorized keys management
-│   ├── SettingsScreen.kt        # Shell, boot, language, about
-│   ├── Strings.kt               # i18n string system (Chinese/English)
-│   └── Theme.kt                 # Material 3 dynamic theme
-└── cpp/
-    └── pty_compat.c             # Native PTY via /dev/ptmx
-```
-
-### Build
-
-```bash
-export ANDROID_HOME=/path/to/android-sdk
-./gradlew clean assembleDebug
-# APK at app/build/outputs/apk/debug/app-debug.apk
-```
-
-### License
-
-Apache License 2.0
 
 ---
 
@@ -160,6 +55,26 @@ ssh -J red@<手机IP>:2222 user@目标主机
 sftp -P 2222 red@<手机IP>
 ```
 
+### 构建
+
+```bash
+# 构建 debug APK
+./build.sh
+
+# 构建 release APK（需要 release.keystore）
+./build.sh release
+
+# 清理
+./build.sh clean
+```
+
+首次构建 release 需要生成 keystore：
+
+```bash
+keytool -genkey -v -keystore release.keystore -alias ssh-server \
+  -keyalg RSA -keysize 2048 -validity 36500
+```
+
 ### 技术栈
 
 | 组件 | 版本 |
@@ -202,14 +117,123 @@ app/src/main/java/com/ssh/relay/
     └── pty_compat.c             # 原生 PTY（/dev/ptmx）
 ```
 
-### 构建
-
-```bash
-export ANDROID_HOME=/path/to/android-sdk
-./gradlew clean assembleDebug
-# APK 位于 app/build/outputs/apk/debug/app-debug.apk
-```
-
 ### 许可证
 
-Apache License 2.0
+[Apache License 2.0](LICENSE)
+
+---
+
+## English
+
+### Features
+
+- **SSH Server** — Run a full SSH server on your Android device
+- **Jump Host** — Use your phone as an SSH jump host (`ssh -J`)
+- **SFTP** — Built-in SFTP subsystem for file transfer
+- **PTY** — Full interactive terminal with native PTY support (with ProcessBuilder fallback)
+- **Public Key Auth** — Manage authorized keys in-app, supports `ssh-copy-id`
+- **Password Auth** — Optional password authentication (disabled when password is empty)
+- **Persistent Host Key** — Server host key generated once and persisted across restarts
+- **Background Service** — Foreground service with WakeLock + WifiLock + NetworkCallback, survives app switch and screen off
+- **Boot Auto-Start** — Optionally start SSH server on device boot
+- **Port Conflict Recovery** — Auto-detects and releases stale port bindings on startup
+- **Session Tracking** — Real-time display of active SSH sessions with keepalive
+- **Configurable Shell** — Custom home directory and shell path (supports Termux shells)
+- **i18n** — Chinese / English UI with runtime language switching
+- **Settings** — Shell config, boot auto-start, language switch, app info
+- **Clean Uninstall** — All data (keys, settings, authorized_keys) removed on uninstall
+
+### Screenshots
+
+The app has 3 tabs:
+- **Server** — Start/stop server, view status with green/gray indicators, active sessions, config (port/user/password), host key fingerprint, language switch
+- **Keys** — Manage authorized SSH public keys with add/delete/copy, comment support
+- **Settings** — Shell path & home dir, boot auto-start toggle, language switch, about info
+
+### Usage
+
+1. Install the APK on your Android device
+2. Open the app, configure username/password/port (default: `red` / empty / `2222`)
+3. Tap **Start Server**
+4. Connect from your computer:
+
+```bash
+# Password auth (if password is set)
+ssh -p 2222 red@<phone-ip>
+
+# Key auth
+ssh-copy-id -p 2222 red@<phone-ip>
+ssh -p 2222 red@<phone-ip>
+
+# Use as jump host
+ssh -J red@<phone-ip>:2222 user@target-host
+
+# SFTP
+sftp -P 2222 red@<phone-ip>
+```
+
+### Build
+
+```bash
+# Build debug APK
+./build.sh
+
+# Build release APK (requires release.keystore)
+./build.sh release
+
+# Clean
+./build.sh clean
+```
+
+To create a release keystore for the first time:
+
+```bash
+keytool -genkey -v -keystore release.keystore -alias ssh-server \
+  -keyalg RSA -keysize 2048 -validity 36500
+```
+
+### Tech Stack
+
+| Component | Version |
+|-----------|---------|
+| Apache MINA SSHD | 2.17.1 |
+| BouncyCastle | 1.80 |
+| Jetpack Compose + Material 3 | BOM 2024.12.01 |
+| Kotlin | 2.1.0 |
+| Android SDK | 35 (min 26) |
+| NDK / CMake | 27 / 3.22.1 |
+
+### Project Structure
+
+```
+app/src/main/java/com/ssh/relay/
+├── SshServerApp.kt              # Application init (BouncyCastle, MINA Android mode)
+├── engine/
+│   ├── SshServerEngine.kt       # SSH server core (auth, shell, SFTP, forwarding, keepalive)
+│   ├── SshClientEngine.kt       # SSH client engine
+│   ├── AuthorizedKeysManager.kt # authorized_keys file management
+│   └── PortChecker.kt           # Port availability check & stale port release
+├── service/
+│   ├── SshServerService.kt      # Foreground service with WakeLock/WifiLock/NetworkCallback
+│   └── BootReceiver.kt          # Boot auto-start receiver
+├── shell/
+│   ├── AndroidShellFactory.kt   # Shell factory
+│   ├── AndroidShellCommand.kt   # PTY + ProcessBuilder shell (configurable path)
+│   ├── AndroidCommandFactory.kt # Exec channel factory (ssh-copy-id support)
+│   ├── AndroidExecCommand.kt    # Exec command with path rewriting
+│   └── PtyCompat.kt             # JNI PTY bridge
+├── ui/
+│   ├── MainActivity.kt          # Entry activity with language provider
+│   ├── Navigation.kt            # 3-tab navigation (Server/Keys/Settings)
+│   ├── ServerScreen.kt          # Server control, status, sessions, fingerprint
+│   ├── KeysScreen.kt            # Authorized keys management
+│   ├── SettingsScreen.kt        # Shell, boot, language, about
+│   ├── Strings.kt               # i18n string system (Chinese/English)
+│   └── Theme.kt                 # Material 3 dynamic theme
+└── cpp/
+    └── pty_compat.c             # Native PTY via /dev/ptmx
+```
+
+### License
+
+[Apache License 2.0](LICENSE)
