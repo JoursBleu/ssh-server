@@ -8,10 +8,14 @@ import org.apache.sshd.common.session.Session
 import org.apache.sshd.common.util.net.SshdSocketAddress
 import org.apache.sshd.server.SshServer
 import org.apache.sshd.server.auth.password.PasswordAuthenticator
-import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
+import org.apache.sshd.server.auth.pubkey.PublickeyAuthenticator
 import org.apache.sshd.server.forward.AcceptAllForwardingFilter
 import org.apache.sshd.sftp.server.SftpSubsystemFactory
 import org.slf4j.LoggerFactory
+import java.io.File
+import java.io.ObjectInputStream
+import java.io.ObjectOutputStream
+import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -19,6 +23,8 @@ class SshServerEngine {
 
     private val log = LoggerFactory.getLogger(SshServerEngine::class.java)
     private var sshd: SshServer? = null
+
+    val authorizedKeysManager = AuthorizedKeysManager()
 
     var port: Int = 2222
     var username: String = "admin"
@@ -44,15 +50,25 @@ class SshServerEngine {
             val server = SshServer.setUpDefaultServer().apply {
                 this.port = this@SshServerEngine.port
 
-                // Host key - generate RSA 3072
-                keyPairProvider = generateHostKey()
+                // Host key - persisted to disk
+                keyPairProvider = loadOrGenerateHostKey()
 
-                // Auth
+                // Password auth
                 passwordAuthenticator = PasswordAuthenticator { inputUser, inputPass, _ ->
                     inputUser == this@SshServerEngine.username &&
                             inputPass == this@SshServerEngine.password
                 }
-                publickeyAuthenticator = AcceptAllPublickeyAuthenticator.INSTANCE
+
+                // Public key auth - check against authorized_keys
+                publickeyAuthenticator = PublickeyAuthenticator { inputUser, key, _ ->
+                    val authorized = authorizedKeysManager.isAuthorized(key)
+                    if (authorized) {
+                        log.info("Pubkey auth succeeded for user '{}'", inputUser)
+                    } else {
+                        log.debug("Pubkey auth failed for user '{}'", inputUser)
+                    }
+                    authorized
+                }
 
                 // Shell
                 shellFactory = AndroidShellFactory()
@@ -107,16 +123,44 @@ class SshServerEngine {
         }
     }
 
-    private fun generateHostKey(): KeyPairProvider {
+    private fun loadOrGenerateHostKey(): KeyPairProvider {
         val keyDir = SshRelayApp.instance.filesDir.resolve("hostkeys")
         keyDir.mkdirs()
-        val keyFile = keyDir.resolve("host_rsa")
+        val keyFile = File(keyDir, "host_rsa.ser")
 
-        // For now, generate in-memory. TODO: persist to keyFile
+        val keyPair: KeyPair = if (keyFile.exists()) {
+            try {
+                ObjectInputStream(keyFile.inputStream().buffered()).use { ois ->
+                    ois.readObject() as KeyPair
+                }.also {
+                    log.info("Loaded host key from {}", keyFile.absolutePath)
+                }
+            } catch (e: Exception) {
+                log.warn("Failed to load host key, regenerating", e)
+                generateAndSaveKey(keyFile)
+            }
+        } else {
+            log.info("No host key found, generating new one")
+            generateAndSaveKey(keyFile)
+        }
+
+        return KeyPairProvider { listOf(keyPair) }
+    }
+
+    private fun generateAndSaveKey(keyFile: File): KeyPair {
         val kpg = KeyPairGenerator.getInstance("RSA")
         kpg.initialize(3072)
         val keyPair = kpg.generateKeyPair()
 
-        return KeyPairProvider { listOf(keyPair) }
+        try {
+            ObjectOutputStream(keyFile.outputStream().buffered()).use { oos ->
+                oos.writeObject(keyPair)
+            }
+            log.info("Host key saved to {}", keyFile.absolutePath)
+        } catch (e: Exception) {
+            log.warn("Failed to save host key", e)
+        }
+
+        return keyPair
     }
 }

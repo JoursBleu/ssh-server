@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CompareArrows
-import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -23,11 +22,10 @@ import androidx.navigation.compose.rememberNavController
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Server : Screen("server", "Server", Icons.Default.CloudUpload)
-    data object Client : Screen("client", "Client", Icons.Default.Terminal)
     data object Forward : Screen("forward", "Forward", Icons.Default.CompareArrows)
 }
 
-val screens = listOf(Screen.Server, Screen.Client, Screen.Forward)
+val screens = listOf(Screen.Server, Screen.Forward)
 
 @Composable
 fun AppNavigation() {
@@ -59,7 +57,6 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(navController, startDestination = Screen.Server.route, Modifier.padding(innerPadding)) {
             composable(Screen.Server.route) { ServerScreen() }
-            composable(Screen.Client.route) { ClientScreen() }
             composable(Screen.Forward.route) { ForwardScreen() }
         }
     }
