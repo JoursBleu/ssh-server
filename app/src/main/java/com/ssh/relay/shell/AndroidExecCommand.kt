@@ -12,6 +12,9 @@ import java.io.OutputStream
 /**
  * Executes a single command via shell -c "command".
  * Used by ssh-copy-id, scp, and any other exec-based SSH operations.
+ *
+ * Special handling: commands referencing .ssh/authorized_keys are rewritten
+ * to use the app's internal directory, since /sdcard doesn't support mkdir.
  */
 class AndroidExecCommand(private val command: String) : Command {
 
@@ -34,25 +37,30 @@ class AndroidExecCommand(private val command: String) : Command {
             try {
                 val home = AndroidShellCommand.getHomeDir()
                 val shell = AndroidShellCommand.getShell()
-                val tmpDir = File(home, "tmp")
-                tmpDir.mkdirs()
 
-                // Ensure .ssh directory exists for ssh-copy-id
+                // App internal .ssh directory (where AuthorizedKeysManager stores keys)
                 val appHome = com.ssh.relay.SshServerApp.instance.filesDir.absolutePath
-                File(appHome, ".ssh").mkdirs()
+                val sshDir = File(appHome, ".ssh")
+                sshDir.mkdirs()
 
-                log.info("Executing: {} -c '{}' (HOME={})", shell, command, home)
+                // Rewrite command: replace .ssh/authorized_keys paths with app internal path
+                // ssh-copy-id sends commands like:
+                //   exec sh -c 'mkdir -p .ssh && cat >> .ssh/authorized_keys ...'
+                //   or: sh -c 'umask 077; ... mkdir -p .ssh && cat >> .ssh/authorized_keys'
+                val actualCommand = rewriteSshCopyIdCommand(command, sshDir.absolutePath)
 
-                val pb = ProcessBuilder(shell, "-c", command)
+                log.info("Executing: {} -c '{}' (HOME={}, original='{}')", shell, actualCommand, home, command)
+
+                val pb = ProcessBuilder(shell, "-c", actualCommand)
                     .redirectErrorStream(false)
                 pb.environment().apply {
-                    put("HOME", home)
-                    put("TMPDIR", tmpDir.absolutePath)
+                    put("HOME", appHome)  // Use app home for exec so .ssh resolves correctly
+                    put("TMPDIR", File(home, "tmp").apply { mkdirs() }.absolutePath)
                     put("PATH", "/sbin:/system/sbin:/system/bin:/system/xbin:/vendor/bin:/product/bin")
                     put("SHELL", shell)
                     put("USER", "shell")
                 }
-                pb.directory(File(home))
+                pb.directory(File(appHome))  // Working dir = app home for .ssh relative paths
 
                 val proc = pb.start()
                 process = proc
@@ -112,7 +120,7 @@ class AndroidExecCommand(private val command: String) : Command {
                 stdoutThread.join(2000)
                 stderrThread.join(2000)
 
-                log.info("Exec finished: exitCode={}, cmd='{}'", exitCode, command)
+                log.info("Exec finished: exitCode={}, cmd='{}'", exitCode, actualCommand)
                 exitCallback?.onExit(exitCode)
 
             } catch (e: Exception) {
@@ -128,5 +136,23 @@ class AndroidExecCommand(private val command: String) : Command {
 
     override fun destroy(channel: ChannelSession) {
         process?.destroyForcibly()
+    }
+
+    companion object {
+        /**
+         * Rewrite ssh-copy-id style commands to use the app's internal .ssh directory.
+         * Replaces relative .ssh paths with absolute paths to the app's .ssh dir.
+         */
+        fun rewriteSshCopyIdCommand(cmd: String, absSshDir: String): String {
+            // If the command references .ssh/authorized_keys, rewrite paths
+            if (!cmd.contains("authorized_keys")) return cmd
+
+            return cmd
+                .replace("~/.ssh/authorized_keys", "$absSshDir/authorized_keys")
+                .replace("\$HOME/.ssh/authorized_keys", "$absSshDir/authorized_keys")
+                .replace(".ssh/authorized_keys", "$absSshDir/authorized_keys")
+                .replace("mkdir -p .ssh", "mkdir -p $absSshDir")
+                .replace("mkdir -p ~/.ssh", "mkdir -p $absSshDir")
+        }
     }
 }
