@@ -33,14 +33,14 @@ Android SSH 服务器应用，把手机变成移动的服务器/跳板机。
 ### 界面截图
 
 <p align="center">
-  <img src="docs/screenshots/server-stopped.jpg" width="240" alt="服务-停止" />
-  <img src="docs/screenshots/server-running.jpg" width="240" alt="服务-运行" />
-  <img src="docs/screenshots/server-sessions.jpg" width="240" alt="服务-会话" />
+  <img src="docs/screenshots/server.jpg" width="240" alt="服务" />
+  <img src="docs/screenshots/server_zn.jpg" width="240" alt="服务(中文)" />
+  <img src="docs/screenshots/keys.jpg" width="240" alt="密钥" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/keys.jpg" width="240" alt="密钥管理" />
-  <img src="docs/screenshots/keys-hostkey.jpg" width="240" alt="服务器密钥" />
+  <img src="docs/screenshots/keys_zn.jpg" width="240" alt="密钥(中文)" />
   <img src="docs/screenshots/settings.jpg" width="240" alt="设置" />
+  <img src="docs/screenshots/settings_zn.jpg" width="240" alt="设置(中文)" />
 </p>
 
 应用包含 3 个标签页：
@@ -161,14 +161,14 @@ app/src/main/java/com/ssh/relay/
 ### Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/server-stopped.jpg" width="240" alt="Server-Stopped" />
-  <img src="docs/screenshots/server-running.jpg" width="240" alt="Server-Running" />
-  <img src="docs/screenshots/server-sessions.jpg" width="240" alt="Server-Sessions" />
+  <img src="docs/screenshots/server.jpg" width="240" alt="Server" />
+  <img src="docs/screenshots/server_zn.jpg" width="240" alt="Server (ZH)" />
+  <img src="docs/screenshots/keys.jpg" width="240" alt="Keys" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/keys.jpg" width="240" alt="Keys" />
-  <img src="docs/screenshots/keys-hostkey.jpg" width="240" alt="Host Key" />
+  <img src="docs/screenshots/keys_zn.jpg" width="240" alt="Keys (ZH)" />
   <img src="docs/screenshots/settings.jpg" width="240" alt="Settings" />
+  <img src="docs/screenshots/settings_zn.jpg" width="240" alt="Settings (ZH)" />
 </p>
 
 The app has 3 tabs:
