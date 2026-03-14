@@ -30,11 +30,22 @@ Android SSH 服务器应用，把手机变成移动的服务器/跳板机。
 - **设置页面** — Shell 配置、开机自启、语言切换、应用信息
 - **干净卸载** — 卸载时自动清除所有数据（密钥、配置、authorized_keys）
 
-### 界面说明
+### 界面截图
+
+<p align="center">
+  <img src="docs/screenshots/server-stopped.jpg" width="240" alt="服务-停止" />
+  <img src="docs/screenshots/server-running.jpg" width="240" alt="服务-运行" />
+  <img src="docs/screenshots/server-sessions.jpg" width="240" alt="服务-会话" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/keys.jpg" width="240" alt="密钥管理" />
+  <img src="docs/screenshots/keys-hostkey.jpg" width="240" alt="服务器密钥" />
+  <img src="docs/screenshots/settings.jpg" width="240" alt="设置" />
+</p>
 
 应用包含 3 个标签页：
 - **服务** — 启停服务器，绿色/灰色状态指示，活跃会话，配置项（端口/用户/密码），Host Key 指纹，语言切换
-- **密钥** — 管理授权 SSH 公钥，支持添加/删除/复制，可填备注
+- **密钥** — 管理授权 SSH 公钥，支持添加/删除/复制，服务器密钥查看
 - **设置** — Shell 路径与 Home 目录，开机自启开关，语言切换，关于信息
 
 ### 使用方法
@@ -149,9 +160,20 @@ app/src/main/java/com/ssh/relay/
 
 ### Screenshots
 
+<p align="center">
+  <img src="docs/screenshots/server-stopped.jpg" width="240" alt="Server-Stopped" />
+  <img src="docs/screenshots/server-running.jpg" width="240" alt="Server-Running" />
+  <img src="docs/screenshots/server-sessions.jpg" width="240" alt="Server-Sessions" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/keys.jpg" width="240" alt="Keys" />
+  <img src="docs/screenshots/keys-hostkey.jpg" width="240" alt="Host Key" />
+  <img src="docs/screenshots/settings.jpg" width="240" alt="Settings" />
+</p>
+
 The app has 3 tabs:
 - **Server** — Start/stop server, view status with green/gray indicators, active sessions, config (port/user/password), host key fingerprint, language switch
-- **Keys** — Manage authorized SSH public keys with add/delete/copy, comment support
+- **Keys** — Manage authorized SSH public keys with add/delete/copy, host key viewing
 - **Settings** — Shell path & home dir, boot auto-start toggle, language switch, about info
 
 ### Usage
