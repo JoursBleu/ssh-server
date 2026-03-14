@@ -24,8 +24,8 @@ class SshServerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val port = intent?.getIntExtra(EXTRA_PORT, 2222) ?: 2222
-        val user = intent?.getStringExtra(EXTRA_USER) ?: "admin"
-        val pass = intent?.getStringExtra(EXTRA_PASS) ?: "admin"
+        val user = intent?.getStringExtra(EXTRA_USER) ?: "red"
+        val pass = intent?.getStringExtra(EXTRA_PASS) ?: ""
 
         engine.port = port
         engine.username = user
@@ -105,7 +105,7 @@ class SshServerService : Service() {
         const val EXTRA_USER = "user"
         const val EXTRA_PASS = "pass"
 
-        fun start(context: Context, port: Int = 2222, user: String = "admin", pass: String = "admin") {
+        fun start(context: Context, port: Int = 2222, user: String = "red", pass: String = "") {
             val intent = Intent(context, SshServerService::class.java).apply {
                 putExtra(EXTRA_PORT, port)
                 putExtra(EXTRA_USER, user)

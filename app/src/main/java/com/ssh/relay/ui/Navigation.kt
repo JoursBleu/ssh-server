@@ -3,7 +3,7 @@ package com.ssh.relay.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -22,10 +22,10 @@ import androidx.navigation.compose.rememberNavController
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Server : Screen("server", "Server", Icons.Default.CloudUpload)
-    data object Forward : Screen("forward", "Forward", Icons.Default.CompareArrows)
+    data object Keys : Screen("keys", "Keys", Icons.Default.VpnKey)
 }
 
-val screens = listOf(Screen.Server, Screen.Forward)
+val screens = listOf(Screen.Server, Screen.Keys)
 
 @Composable
 fun AppNavigation() {
@@ -57,7 +57,7 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(navController, startDestination = Screen.Server.route, Modifier.padding(innerPadding)) {
             composable(Screen.Server.route) { ServerScreen() }
-            composable(Screen.Forward.route) { ForwardScreen() }
+            composable(Screen.Keys.route) { KeysScreen() }
         }
     }
 }

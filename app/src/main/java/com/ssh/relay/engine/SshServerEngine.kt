@@ -28,8 +28,8 @@ class SshServerEngine {
     val authorizedKeysManager = AuthorizedKeysManager()
 
     var port: Int = 2222
-    var username: String = "admin"
-    var password: String = "admin"
+    var username: String = "red"
+    var password: String = ""
 
     val isRunning: Boolean get() = sshd?.isStarted == true
 
@@ -54,10 +54,12 @@ class SshServerEngine {
                 // Host key - persisted to disk
                 keyPairProvider = loadOrGenerateHostKey()
 
-                // Password auth
+                // Password auth (disabled when password is empty)
                 passwordAuthenticator = PasswordAuthenticator { inputUser, inputPass, _ ->
-                    inputUser == this@SshServerEngine.username &&
-                            inputPass == this@SshServerEngine.password
+                    val pwd = this@SshServerEngine.password
+                    pwd.isNotEmpty() &&
+                            inputUser == this@SshServerEngine.username &&
+                            inputPass == pwd
                 }
 
                 // Public key auth - check against authorized_keys
