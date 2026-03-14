@@ -32,6 +32,12 @@ data class SessionInfo(
     val connectedAt: Long = System.currentTimeMillis()
 )
 
+sealed class StartResult {
+    object Success : StartResult()
+    data class PortUsedByOther(val port: Int) : StartResult()
+    data class Error(val message: String) : StartResult()
+}
+
 class SshServerEngine {
 
     private val log = LoggerFactory.getLogger(SshServerEngine::class.java)
@@ -45,13 +51,11 @@ class SshServerEngine {
 
     val isRunning: Boolean get() = sshd?.isStarted == true
 
-    // Active session tracking
     private val _activeSessions = CopyOnWriteArraySet<SessionInfo>()
     val activeSessions: Set<SessionInfo> get() = _activeSessions
 
     var onSessionsChanged: ((Set<SessionInfo>) -> Unit)? = null
 
-    // Map session to SessionInfo for proper removal
     private val sessionMap = java.util.concurrent.ConcurrentHashMap<Long, SessionInfo>()
 
     interface Listener {
@@ -66,10 +70,38 @@ class SshServerEngine {
     fun addListener(l: Listener) = listeners.add(l)
     fun removeListener(l: Listener) = listeners.remove(l)
 
-    fun start() {
+    /**
+     * Start the SSH server.
+     * Returns StartResult indicating success, port conflict, or error.
+     */
+    fun start(): StartResult {
+        // If we have an old instance, stop it first
         if (sshd != null) {
             log.info("Stopping existing server before restart")
             stop()
+        }
+
+        // Check port before attempting to start
+        val portStatus = PortChecker.checkPort(port)
+        log.info("Port {} status: {}", port, portStatus)
+
+        when (portStatus) {
+            PortChecker.PortStatus.FREE -> { /* good to go */ }
+            PortChecker.PortStatus.USED_BY_US -> {
+                // Stale from our previous run, force kill by stopping again and waiting
+                log.warn("Port {} still held by us (stale), waiting for release...", port)
+                Thread.sleep(2000)
+                // Re-check
+                val recheck = PortChecker.checkPort(port)
+                if (recheck != PortChecker.PortStatus.FREE) {
+                    log.warn("Port {} still not free after wait, status={}", port, recheck)
+                    // Try harder - it might be from an old server instance
+                }
+            }
+            PortChecker.PortStatus.USED_BY_OTHER -> {
+                log.error("Port {} is used by another application", port)
+                return StartResult.PortUsedByOther(port)
+            }
         }
 
         try {
@@ -78,19 +110,14 @@ class SshServerEngine {
 
                 keyPairProvider = loadOrGenerateHostKey()
 
-                // ===== Keepalive & Timeout =====
-                // Server sends keepalive every 15 seconds to keep connection alive
+                // Keepalive
                 CoreModuleProperties.HEARTBEAT_INTERVAL.set(this, Duration.ofSeconds(15))
-                // Wait up to 10 seconds for heartbeat reply
+                @Suppress("DEPRECATION")
                 CoreModuleProperties.HEARTBEAT_REPLY_WAIT.set(this, Duration.ofSeconds(10))
-                // No idle timeout (keep sessions alive indefinitely)
                 CoreModuleProperties.IDLE_TIMEOUT.set(this, Duration.ZERO)
-                // Long auth timeout
                 CoreModuleProperties.AUTH_TIMEOUT.set(this, Duration.ofMinutes(5))
-                // Disable disconnect on no-reply (tolerate missed keepalives)
                 CoreModuleProperties.HEARTBEAT_NO_REPLY_MAX.set(this, 10)
 
-                // Password auth (disabled when password is empty)
                 passwordAuthenticator = PasswordAuthenticator { inputUser, inputPass, _ ->
                     val pwd = this@SshServerEngine.password
                     pwd.isNotEmpty() &&
@@ -98,14 +125,10 @@ class SshServerEngine {
                             inputPass == pwd
                 }
 
-                // Public key auth
                 publickeyAuthenticator = PublickeyAuthenticator { inputUser, key, _ ->
                     val authorized = authorizedKeysManager.isAuthorized(key)
-                    if (authorized) {
-                        log.info("Pubkey auth succeeded for user '{}'", inputUser)
-                    } else {
-                        log.debug("Pubkey auth failed for user '{}'", inputUser)
-                    }
+                    if (authorized) log.info("Pubkey auth OK for '{}'", inputUser)
+                    else log.debug("Pubkey auth failed for '{}'", inputUser)
                     authorized
                 }
 
@@ -114,27 +137,19 @@ class SshServerEngine {
                 subsystemFactories = listOf(SftpSubsystemFactory())
                 forwardingFilter = AcceptAllForwardingFilter.INSTANCE
 
-                // Session listener
                 addSessionListener(object : SessionListener {
                     override fun sessionCreated(session: Session) {
-                        val remote = session.ioSession?.remoteAddress?.toString() ?: "unknown"
-                        log.info("Session created from {}", remote)
+                        log.info("Session created from {}", session.ioSession?.remoteAddress)
                     }
 
                     override fun sessionEvent(session: Session, event: SessionListener.Event) {
                         if (event == SessionListener.Event.Authenticated) {
                             val remote = session.ioSession?.remoteAddress?.toString()?.removePrefix("/") ?: "unknown"
-                            val user = if (session is ServerSession) {
-                                session.username ?: "unknown"
-                            } else "unknown"
-                            val info = SessionInfo(
-                                id = session.ioSession?.id ?: System.nanoTime(),
-                                remoteAddress = remote,
-                                username = user
-                            )
+                            val user = if (session is ServerSession) session.username ?: "unknown" else "unknown"
+                            val info = SessionInfo(id = session.ioSession?.id ?: System.nanoTime(), remoteAddress = remote, username = user)
                             _activeSessions.add(info)
                             sessionMap[session.ioSession?.id ?: 0L] = info
-                            log.info("Session authenticated: {} from {}", user, remote)
+                            log.info("Authenticated: {} from {}", user, remote)
                             onSessionsChanged?.invoke(_activeSessions)
                             listeners.forEach { it.onClientConnected(remote) }
                         }
@@ -142,10 +157,7 @@ class SshServerEngine {
 
                     override fun sessionClosed(session: Session) {
                         val ioId = session.ioSession?.id ?: 0L
-                        val info = sessionMap.remove(ioId)
-                        if (info != null) {
-                            _activeSessions.remove(info)
-                        }
+                        sessionMap.remove(ioId)?.let { _activeSessions.remove(it) }
                         log.info("Session closed: ioId={}", ioId)
                         onSessionsChanged?.invoke(_activeSessions)
                     }
@@ -153,29 +165,20 @@ class SshServerEngine {
 
                 addPortForwardingEventListener(object : PortForwardingEventListener {
                     override fun establishedExplicitTunnel(
-                        session: Session?,
-                        local: SshdSocketAddress?,
-                        remote: SshdSocketAddress?,
-                        localForwarding: Boolean,
-                        boundAddress: SshdSocketAddress?,
-                        t: Throwable?
+                        session: Session?, local: SshdSocketAddress?, remote: SshdSocketAddress?,
+                        localForwarding: Boolean, boundAddress: SshdSocketAddress?, t: Throwable?
                     ) {
                         if (t == null) {
-                            log.info("Tunnel established: {} -> {}", local, remote)
-                            listeners.forEach {
-                                it.onForwardingEstablished(
-                                    local?.toString() ?: "?",
-                                    remote?.toString() ?: "?"
-                                )
-                            }
+                            log.info("Tunnel: {} -> {}", local, remote)
+                            listeners.forEach { it.onForwardingEstablished(local?.toString() ?: "?", remote?.toString() ?: "?") }
                         }
                     }
                 })
             }
 
-            // Retry binding up to 5 times with increasing delay
+            // Retry binding up to 3 times
             var lastError: Exception? = null
-            for (attempt in 1..5) {
+            for (attempt in 1..3) {
                 try {
                     server.start()
                     sshd = server
@@ -183,25 +186,23 @@ class SshServerEngine {
                     sessionMap.clear()
                     log.info("SSH server started on port {} (attempt {})", port, attempt)
                     listeners.forEach { it.onServerStarted(port) }
-                    return
+                    return StartResult.Success
                 } catch (e: java.io.IOException) {
                     lastError = e
-                    log.warn("Failed to bind port {} (attempt {}): {}", port, attempt, e.message)
+                    log.warn("Bind failed attempt {}: {}", attempt, e.message)
                     try { server.stop(true) } catch (_: Exception) {}
-                    if (attempt < 5) {
-                        Thread.sleep(attempt * 500L)
-                    }
+                    if (attempt < 3) Thread.sleep(1000L * attempt)
                 }
             }
-            // All retries failed
+
             sshd = null
-            log.error("Failed to start SSH server after 5 attempts", lastError)
-            listeners.forEach { it.onServerError(lastError ?: Exception("Bind failed")) }
+            return StartResult.Error(lastError?.message ?: "Failed to bind port $port")
 
         } catch (e: Exception) {
             log.error("Failed to start SSH server", e)
             sshd = null
             listeners.forEach { it.onServerError(e) }
+            return StartResult.Error(e.message ?: "Unknown error")
         }
     }
 
@@ -218,7 +219,7 @@ class SshServerEngine {
             log.info("SSH server stopped")
             listeners.forEach { it.onServerStopped() }
         }
-        // Give OS time to release the port
+        // Wait for port release
         try { Thread.sleep(1000) } catch (_: InterruptedException) {}
     }
 
@@ -229,11 +230,8 @@ class SshServerEngine {
 
         val keyPair: KeyPair = if (keyFile.exists()) {
             try {
-                ObjectInputStream(keyFile.inputStream().buffered()).use { ois ->
-                    ois.readObject() as KeyPair
-                }.also {
-                    log.info("Loaded host key from {}", keyFile.absolutePath)
-                }
+                ObjectInputStream(keyFile.inputStream().buffered()).use { it.readObject() as KeyPair }
+                    .also { log.info("Loaded host key from {}", keyFile.absolutePath) }
             } catch (e: Exception) {
                 log.warn("Failed to load host key, regenerating", e)
                 generateAndSaveKey(keyFile)
@@ -250,16 +248,12 @@ class SshServerEngine {
         val kpg = KeyPairGenerator.getInstance("RSA")
         kpg.initialize(3072)
         val keyPair = kpg.generateKeyPair()
-
         try {
-            ObjectOutputStream(keyFile.outputStream().buffered()).use { oos ->
-                oos.writeObject(keyPair)
-            }
+            ObjectOutputStream(keyFile.outputStream().buffered()).use { it.writeObject(keyPair) }
             log.info("Host key saved to {}", keyFile.absolutePath)
         } catch (e: Exception) {
             log.warn("Failed to save host key", e)
         }
-
         return keyPair
     }
 }
