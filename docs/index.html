@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSH Server - Android SSH 服务器</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --card: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --purple: #bc8cff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.hero {
+  text-align: center;
+  padding: 80px 20px 60px;
+  background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #1a1f2b 100%);
+}
+.hero h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.hero h1 .prompt { color: var(--green); }
+.hero p {
+  font-size: 1.25rem;
+  color: var(--muted);
+  max-width: 600px;
+  margin: 0 auto 32px;
+}
+.badges { margin-bottom: 32px; }
+.badges img { margin: 0 4px; }
+.btn-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: var(--green);
+  color: #000;
+}
+.btn-primary:hover { background: #2ea043; text-decoration: none; }
+.btn-secondary {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { border-color: var(--muted); text-decoration: none; }
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+section { padding: 60px 0; }
+section h2 {
+  font-size: 2rem;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+.feature-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+.feature-card h3 {
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.feature-card p { color: var(--muted); font-size: 0.95rem; }
+.feature-icon { font-size: 1.3rem; }
+
+.screenshots {
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.screenshot-grid {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.screenshot-grid img {
+  width: 220px;
+  border-radius: 16px;
+  border: 2px solid var(--border);
+  transition: transform 0.2s;
+}
+.screenshot-grid img:hover { transform: scale(1.05); }
+
+.tech-table {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  border-collapse: collapse;
+}
+.tech-table th, .tech-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.tech-table th { color: var(--muted); font-weight: 500; }
+
+.quickstart {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 700px;
+  margin: 0 auto;
+}
+.quickstart code {
+  display: block;
+  background: var(--bg);
+  padding: 16px;
+  border-radius: 8px;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 0.9rem;
+  overflow-x: auto;
+  margin: 8px 0;
+  color: var(--green);
+}
+.quickstart .comment { color: var(--muted); }
+
+footer {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+.lang-switch {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  z-index: 100;
+}
+.lang-switch:hover { color: var(--text); border-color: var(--muted); }
+
+@media (max-width: 768px) {
+  .hero h1 { font-size: 2rem; }
+  .hero p { font-size: 1rem; }
+  .screenshot-grid img { width: 160px; }
+}
+</style>
+</head>
+<body>
+
+<button class="lang-switch" onclick="toggleLang()" id="langBtn">English</button>
+
+<!-- Hero -->
+<div class="hero">
+  <h1><span class="prompt">&gt;_</span> SSH Server</h1>
+  <p id="heroDesc">Android SSH 服务器应用，把手机变成移动的服务器 / 跳板机。</p>
+  <div class="badges">
+    <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License">
+    <img src="https://img.shields.io/badge/Android-8.0%2B_(API_26)-green.svg" alt="Android">
+    <img src="https://img.shields.io/badge/Kotlin-2.1.0-purple.svg" alt="Kotlin">
+    <img src="https://img.shields.io/github/v/release/JoursBleu/ssh-server?include_prereleases" alt="Release">
+  </div>
+  <div class="btn-group">
+    <a href="https://github.com/JoursBleu/ssh-server/releases/latest" class="btn btn-primary">
+      ⬇ <span data-zh="下载 APK" data-en="Download APK">下载 APK</span>
+    </a>
+    <a href="https://github.com/JoursBleu/ssh-server" class="btn btn-secondary">
+      ☆ <span data-zh="GitHub 源码" data-en="GitHub Source">GitHub 源码</span>
+    </a>
+  </div>
+</div>
+
+<!-- Features -->
+<section>
+  <div class="container">
+    <h2 data-zh="功能特性" data-en="Features">功能特性</h2>
+    <div class="features">
+      <div class="feature-card">
+        <h3><span class="feature-icon">🖥️</span> <span data-zh="SSH 服务器" data-en="SSH Server">SSH 服务器</span></h3>
+        <p data-zh="基于 Apache MINA SSHD 2.17.1，在手机上运行完整的 SSH 服务器。" data-en="Full SSH server on your phone, powered by Apache MINA SSHD 2.17.1.">基于 Apache MINA SSHD 2.17.1，在手机上运行完整的 SSH 服务器。</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="feature-icon">🔗</span> <span data-zh="跳板机" data-en="Jump Host">跳板机</span></h3>
+        <p data-zh="将手机作为 SSH 跳板机 (ssh -J)，随时随地中继连接。" data-en="Use your phone as an SSH jump host (ssh -J), relay connections anywhere.">将手机作为 SSH 跳板机 (ssh -J)，随时随地中继连接。</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="feature-icon">📁</span> <span data-zh="SFTP 文件传输" data-en="SFTP Transfer">SFTP 文件传输</span></h3>
+        <p data-zh="内置 SFTP 子系统，安全传输文件到手机或从手机传出。" data-en="Built-in SFTP subsystem for secure file transfers to and from your phone.">内置 SFTP 子系统，安全传输文件到手机或从手机传出。</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="feature-icon">🔐</span> <span data-zh="密钥认证" data-en="Key Auth">密钥认证</span></h3>
+        <p data-zh="支持公钥认证和 ssh-copy-id，也可选密码认证。" data-en="Public key auth with ssh-copy-id support, optional password auth.">支持公钥认证和 ssh-copy-id，也可选密码认证。</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="feature-icon">⚡</span> <span data-zh="原生终端" data-en="Native PTY">原生终端</span></h3>
+        <p data-zh="JNI 原生 PTY 支持 (/dev/ptmx)，完整的交互式终端体验。" data-en="Native PTY via JNI (/dev/ptmx), full interactive terminal experience.">JNI 原生 PTY 支持 (/dev/ptmx)，完整的交互式终端体验。</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="feature-icon">🔋</span> <span data-zh="后台常驻" data-en="Background Service">后台常驻</span></h3>
+        <p data-zh="前台服务 + WakeLock + WifiLock，切换应用或熄屏不断连。" data-en="Foreground service + WakeLock + WifiLock, stays alive through app switch and screen off.">前台服务 + WakeLock + WifiLock，切换应用或熄屏不断连。</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="feature-icon">🚀</span> <span data-zh="开机自启" data-en="Boot Auto-Start">开机自启</span></h3>
+        <p data-zh="可选开机后自动启动 SSH 服务，无需手动操作。" data-en="Optionally start SSH server on device boot, no manual action needed.">可选开机后自动启动 SSH 服务，无需手动操作。</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="feature-icon">🌐</span> <span data-zh="中英双语" data-en="i18n">中英双语</span></h3>
+        <p data-zh="运行时中英文界面即时切换，Material 3 动态主题。" data-en="Runtime Chinese/English UI switching, Material 3 dynamic theme.">运行时中英文界面即时切换，Material 3 动态主题。</p>
+      </div>
+      <div class="feature-card">
+        <h3><span class="feature-icon">📊</span> <span data-zh="会话追踪" data-en="Session Tracking">会话追踪</span></h3>
+        <p data-zh="实时显示活跃 SSH 会话，内置 keepalive 保活机制。" data-en="Real-time active session display with built-in keepalive.">实时显示活跃 SSH 会话，内置 keepalive 保活机制。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Screenshots -->
+<section class="screenshots">
+  <div class="container">
+    <h2 data-zh="界面截图" data-en="Screenshots">界面截图</h2>
+    <div class="screenshot-grid" id="screenshotGrid">
+      <img src="screenshots/server_zn.jpg" alt="服务" data-zh-src="screenshots/server_zn.jpg" data-en-src="screenshots/server.jpg">
+      <img src="screenshots/keys_zn.jpg" alt="密钥" data-zh-src="screenshots/keys_zn.jpg" data-en-src="screenshots/keys.jpg">
+      <img src="screenshots/settings_zn.jpg" alt="设置" data-zh-src="screenshots/settings_zn.jpg" data-en-src="screenshots/settings.jpg">
+    </div>
+  </div>
+</section>
+
+<!-- Quick Start -->
+<section>
+  <div class="container">
+    <h2 data-zh="快速开始" data-en="Quick Start">快速开始</h2>
+    <div class="quickstart">
+      <p data-zh="1. 安装 APK，打开应用" data-en="1. Install APK, open the app">1. 安装 APK，打开应用</p>
+      <p data-zh="2. 配置用户名 / 密码 / 端口（默认 red / 空 / 2222）" data-en="2. Configure username / password / port (default: red / empty / 2222)">2. 配置用户名 / 密码 / 端口（默认 red / 空 / 2222）</p>
+      <p data-zh="3. 点击「启动服务」" data-en="3. Tap 'Start Server'">3. 点击「启动服务」</p>
+      <p data-zh="4. 从电脑连接：" data-en="4. Connect from your computer:">4. 从电脑连接：</p>
+      <code><span class="comment"># SSH</span>
+ssh -p 2222 red@&lt;phone-ip&gt;
+
+<span class="comment"># 公钥认证 / Key auth</span>
+ssh-copy-id -p 2222 red@&lt;phone-ip&gt;
+
+<span class="comment"># 跳板机 / Jump host</span>
+ssh -J red@&lt;phone-ip&gt;:2222 user@target
+
+<span class="comment"># SFTP</span>
+sftp -P 2222 red@&lt;phone-ip&gt;</code>
+    </div>
+  </div>
+</section>
+
+<!-- Tech Stack -->
+<section>
+  <div class="container">
+    <h2 data-zh="技术栈" data-en="Tech Stack">技术栈</h2>
+    <table class="tech-table">
+      <tr><th data-zh="组件" data-en="Component">组件</th><th data-zh="版本" data-en="Version">版本</th></tr>
+      <tr><td>Apache MINA SSHD</td><td>2.17.1</td></tr>
+      <tr><td>BouncyCastle</td><td>1.80</td></tr>
+      <tr><td>Jetpack Compose + Material 3</td><td>BOM 2024.12.01</td></tr>
+      <tr><td>Kotlin</td><td>2.1.0</td></tr>
+      <tr><td>Android SDK</td><td>35 (min 26)</td></tr>
+      <tr><td>NDK / CMake</td><td>27 / 3.22.1</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>
+    <a href="https://github.com/JoursBleu/ssh-server">GitHub</a> ·
+    <a href="https://github.com/JoursBleu/ssh-server/releases">Releases</a> ·
+    <a href="https://github.com/JoursBleu/ssh-server/blob/main/LICENSE">Apache 2.0</a>
+  </p>
+  <p style="margin-top: 8px;">© 2026 JoursBleu</p>
+</footer>
+
+<script>
+let lang = 'zh';
+function toggleLang() {
+  lang = lang === 'zh' ? 'en' : 'zh';
+  document.getElementById('langBtn').textContent = lang === 'zh' ? 'English' : '中文';
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.querySelectorAll('[data-zh]').forEach(el => {
+    el.textContent = el.getAttribute('data-' + lang);
+  });
+  document.querySelectorAll('[data-zh-src]').forEach(img => {
+    img.src = img.getAttribute('data-' + lang + '-src');
+  });
+}
+</script>
+</body>
+</html>
