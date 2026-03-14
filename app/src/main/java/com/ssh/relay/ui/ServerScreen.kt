@@ -1,13 +1,9 @@
 package com.ssh.relay.ui
 
 import android.Manifest
-import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,11 +18,9 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,6 +49,7 @@ private const val PREFS_NAME = "ssh_server_prefs"
 private const val KEY_PORT = "port"
 private const val KEY_USERNAME = "username"
 private const val KEY_PASSWORD = "password"
+private const val KEY_HIDE_BG_TIP = "hide_background_tip"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +57,9 @@ fun ServerScreen() {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
+    // Background tip dialog
+    var showBgTipDialog by remember { mutableStateOf(!prefs.getBoolean(KEY_HIDE_BG_TIP, false)) }
 
     // Poll server state every 500ms
     var serverState by remember { mutableStateOf(SshServerService.serverState) }
@@ -107,9 +105,35 @@ fun ServerScreen() {
         ActivityResultContracts.RequestPermission()
     ) { /* granted or denied */ }
 
-    val settingsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { }
+    // Background keep-alive tip dialog
+    if (showBgTipDialog) {
+        AlertDialog(
+            onDismissRequest = { showBgTipDialog = false },
+            title = { Text("后台保活设置") },
+            text = {
+                Text(
+                    "为保证 SSH 服务在后台稳定运行，请根据手机品牌手动设置：\n\n" +
+                    "华为/荣耀：设置 → 应用启动管理 → 手动管理 → 允许后台活动\n" +
+                    "小米/红米：设置 → 省电策略 → 无限制\n" +
+                    "OPPO/vivo：设置 → 电池 → 允许后台运行",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showBgTipDialog = false }) {
+                    Text("知道了")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    prefs.edit().putBoolean(KEY_HIDE_BG_TIP, true).apply()
+                    showBgTipDialog = false
+                }) {
+                    Text("不再显示")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -119,33 +143,6 @@ fun ServerScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("SSH Server", style = MaterialTheme.typography.headlineMedium)
-
-        // Background keep-alive tips
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.tertiary)
-                    Spacer(Modifier.width(8.dp))
-                    Text("后台保活设置", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.tertiary)
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "华为/荣耀：设置 → 应用启动管理 → 手动管理 → 允许后台活动\n" +
-                    "小米/红米：设置 → 省电策略 → 无限制\n" +
-                    "OPPO/vivo：设置 → 电池 → 允许后台运行",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { tryOpenBackgroundSettings(context) }) {
-                    Icon(Icons.Default.Settings, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("后台设置")
-                }
-            }
-        }
 
         // Error card
         if (serverState == ServerState.ERROR && lastError != null) {
@@ -158,7 +155,7 @@ fun ServerScreen() {
             }
         }
 
-        // Status card
+        // Status card (merged with active sessions)
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -169,92 +166,60 @@ fun ServerScreen() {
                 }
             )
         ) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (isTransitioning) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(12.dp))
-                }
-                Column {
-                    Text(
-                        when (serverState) {
-                            ServerState.STOPPED -> "○ Stopped"
-                            ServerState.STARTING -> "Starting..."
-                            ServerState.RUNNING -> "● Running"
-                            ServerState.STOPPING -> "Stopping..."
-                            ServerState.ERROR -> "✕ Error"
-                        },
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    if (isRunning) {
-                        val authMethods = buildList {
-                            if (SshServerService.currentPass.isNotEmpty()) add("password")
-                            add("publickey")
-                        }.joinToString(" + ")
-                        Text("Port ${SshServerService.currentPort} · User: ${SshServerService.currentUser} · Auth: $authMethods",
-                            style = MaterialTheme.typography.bodyMedium)
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isTransitioning) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
                     }
-                }
-            }
-        }
-
-        // Host Key fingerprint
-        if (fingerprint != null) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Fingerprint, null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Host Key 指纹", style = MaterialTheme.typography.titleSmall)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text("RSA SHA-256", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(2.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                clipboardManager.setText(AnnotatedString(fingerprint))
-                                Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
-                            },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Column {
                         Text(
-                            fingerprint,
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            modifier = Modifier.weight(1f)
+                            when (serverState) {
+                                ServerState.STOPPED -> "○ Stopped"
+                                ServerState.STARTING -> "Starting..."
+                                ServerState.RUNNING -> "● Running"
+                                ServerState.STOPPING -> "Stopping..."
+                                ServerState.ERROR -> "✕ Error"
+                            },
+                            style = MaterialTheme.typography.titleMedium
                         )
-                        IconButton(onClick = {
-                            clipboardManager.setText(AnnotatedString(fingerprint))
-                            Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Icon(Icons.Default.ContentCopy, "Copy", Modifier.size(18.dp))
+                        if (isRunning) {
+                            val authMethods = buildList {
+                                if (SshServerService.currentPass.isNotEmpty()) add("password")
+                                add("publickey")
+                            }.joinToString(" + ")
+                            Text(
+                                "Port ${SshServerService.currentPort} · User: ${SshServerService.currentUser} · Auth: $authMethods",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }
-            }
-        }
-
-        // Active sessions
-        if (isRunning) {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                // Active sessions (inline)
+                if (isRunning) {
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Active Sessions: ${sessions.size}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Icon(Icons.Default.Person, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Sessions: ${sessions.size}", style = MaterialTheme.typography.titleSmall)
                     }
                     if (sessions.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(4.dp))
                         val dateFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
                         sessions.forEach { s ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("${s.username}@${s.remoteAddress}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                Text(dateFormat.format(Date(s.connectedAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f))
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("${s.username}@${s.remoteAddress}", style = MaterialTheme.typography.bodySmall)
+                                Text(dateFormat.format(Date(s.connectedAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
                             }
                         }
                     } else {
                         Spacer(Modifier.height(4.dp))
-                        Text("No active connections", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f))
+                        Text("No active connections", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
                     }
                 }
             }
@@ -294,6 +259,43 @@ fun ServerScreen() {
 
         if (password.isEmpty() && !isRunning && !isTransitioning) {
             Text("Password auth disabled. Use SSH keys.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        // Host Key fingerprint (bottom)
+        if (fingerprint != null) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Fingerprint, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Host Key 指纹", style = MaterialTheme.typography.titleSmall)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text("RSA SHA-256", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(2.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(fingerprint))
+                                Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            fingerprint,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = {
+                            clipboardManager.setText(AnnotatedString(fingerprint))
+                            Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(Icons.Default.ContentCopy, "Copy", Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(Modifier.weight(1f))
@@ -342,33 +344,6 @@ fun ServerScreen() {
             )
         }
     }
-}
-
-private fun tryOpenBackgroundSettings(context: Context) {
-    val intents = listOf(
-        Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")),
-        Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity")),
-        Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity")),
-        Intent().setComponent(ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
-        Intent().setComponent(ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")),
-        Intent().setComponent(ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")),
-        Intent().setComponent(ComponentName("com.samsung.android.lool", "com.samsung.android.sm.battery.ui.BatteryActivity")),
-    )
-    for (intent in intents) {
-        try {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            if (context.packageManager.resolveActivity(intent, 0) != null) {
-                context.startActivity(intent)
-                return
-            }
-        } catch (_: Exception) {}
-    }
-    try {
-        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.parse("package:${context.packageName}")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-    } catch (_: Exception) {}
 }
 
 private fun getHostKeyFingerprint(context: Context): String? {
