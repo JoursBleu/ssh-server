@@ -16,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
@@ -66,6 +65,7 @@ fun ServerScreen() {
             serverState = SshServerService.serverState
             lastError = SshServerService.lastError
             sessions = SshServerService.activeSessions
+            isBatteryOptimized = !pm.isIgnoringBatteryOptimizations(context.packageName)
             kotlinx.coroutines.delay(500)
         }
     }
@@ -112,40 +112,40 @@ fun ServerScreen() {
     ) {
         Text("SSH Server", style = MaterialTheme.typography.headlineMedium)
 
-        // Battery optimization warning
-        if (isBatteryOptimized) {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.BatteryAlert, null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("请关闭电池优化", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text("否则切换到其他应用后 SSH 连接会中断。", style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = {
-                        settingsLauncher.launch(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        })
-                    }) {
-                        Icon(Icons.Default.BatteryAlert, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("关闭电池优化")
-                    }
-                }
-            }
-        }
-
-        // Manufacturer tips
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+        // Background keep-alive tips (merged battery optimization + manufacturer tips)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isBatteryOptimized) MaterialTheme.colorScheme.errorContainer
+                    else MaterialTheme.colorScheme.tertiaryContainer
+            )
+        ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.tertiary)
+                    Icon(
+                        Icons.Default.Warning, null,
+                        tint = if (isBatteryOptimized) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.tertiary
+                    )
                     Spacer(Modifier.width(8.dp))
-                    Text("后台保活设置", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.tertiary)
+                    Text(
+                        "后台保活设置",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (isBatteryOptimized) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.tertiary
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
+
+                if (isBatteryOptimized) {
+                    Text(
+                        "⚠ 电池优化未关闭，切到后台后 SSH 连接可能中断",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+
                 Text(
                     "华为/荣耀：设置 → 应用启动管理 → 手动管理 → 全部开启\n" +
                     "小米/红米：设置 → 省电策略 → 无限制\n" +
@@ -154,6 +154,15 @@ fun ServerScreen() {
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (isBatteryOptimized) {
+                        OutlinedButton(onClick = {
+                            settingsLauncher.launch(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            })
+                        }) {
+                            Text("关闭电池优化")
+                        }
+                    }
                     OutlinedButton(onClick = { tryOpenBackgroundSettings(context) }) {
                         Icon(Icons.Default.Settings, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -304,7 +313,7 @@ fun ServerScreen() {
                         }
                     }
 
-                    if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                    if (isBatteryOptimized) {
                         try {
                             context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                                 data = Uri.parse("package:${context.packageName}")
