@@ -19,6 +19,7 @@ import com.ssh.relay.engine.SshServerEngine
 import com.ssh.relay.ui.MainActivity
 import java.net.Inet4Address
 import java.net.NetworkInterface
+import java.util.concurrent.Executors
 
 class SshServerService : Service() {
 
@@ -26,6 +27,7 @@ class SshServerService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private val executor = Executors.newSingleThreadExecutor()
 
     override fun onCreate() {
         super.onCreate()
@@ -52,9 +54,8 @@ class SshServerService : Service() {
             val callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     val ip = getDeviceIp()
-                    val port = _currentPort
                     val nm = getSystemService(NotificationManager::class.java)
-                    nm.notify(NOTIFICATION_ID, buildNotification(ip, port))
+                    nm.notify(NOTIFICATION_ID, buildNotification(ip, _currentPort))
                 }
                 override fun onLost(network: Network) {
                     val nm = getSystemService(NotificationManager::class.java)
@@ -71,44 +72,54 @@ class SshServerService : Service() {
         val user = intent?.getStringExtra(EXTRA_USER) ?: "red"
         val pass = intent?.getStringExtra(EXTRA_PASS) ?: ""
 
-        engine?.stop()
-
-        val eng = SshServerEngine()
-        eng.port = port
-        eng.username = user
-        eng.password = pass
-
-        // Track sessions in companion for UI access
-        eng.onSessionsChanged = { sessions ->
-            _activeSessions = sessions.toSet()
-            // Update notification with session count
-            try {
-                val ip = getDeviceIp()
-                val nm = getSystemService(NotificationManager::class.java)
-                nm.notify(NOTIFICATION_ID, buildNotification(ip, port))
-            } catch (_: Exception) {}
-        }
-
-        eng.start()
-        engine = eng
-
-        val ip = getDeviceIp()
-        startForeground(NOTIFICATION_ID, buildNotification(ip, port))
-
-        _isRunning = true
         _currentPort = port
         _currentUser = user
         _currentPass = pass
-        _activeSessions = emptySet()
 
+        val ip = getDeviceIp()
+        startForeground(NOTIFICATION_ID, buildNotification(ip, port))
+        _isRunning = true
+
+        // Run engine start on background thread (stop may block for port release)
+        executor.submit {
+            try {
+                engine?.stop()
+                engine = null
+
+                val eng = SshServerEngine()
+                eng.port = port
+                eng.username = user
+                eng.password = pass
+                eng.onSessionsChanged = { sessions ->
+                    _activeSessions = sessions.toSet()
+                    try {
+                        val currentIp = getDeviceIp()
+                        val nm = getSystemService(NotificationManager::class.java)
+                        nm.notify(NOTIFICATION_ID, buildNotification(currentIp, port))
+                    } catch (_: Exception) {}
+                }
+                eng.start()
+                engine = eng
+            } catch (e: Exception) {
+                android.util.Log.e("SshServerService", "Failed to start engine", e)
+            }
+        }
+
+        _activeSessions = emptySet()
         return START_STICKY
     }
 
     override fun onDestroy() {
         _isRunning = false
         _activeSessions = emptySet()
-        engine?.stop()
-        engine = null
+
+        // Stop engine on background thread but don't wait too long
+        try {
+            executor.submit { engine?.stop(); engine = null }.get(5, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (_: Exception) {
+            engine?.let { try { it.stop() } catch (_: Exception) {} }
+            engine = null
+        }
 
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
@@ -124,6 +135,7 @@ class SshServerService : Service() {
         }
         networkCallback = null
 
+        executor.shutdownNow()
         super.onDestroy()
     }
 
@@ -153,7 +165,7 @@ class SshServerService : Service() {
         )
         val sessionCount = _activeSessions.size
         val text = if (sessionCount > 0) {
-            "$ip:$port · $sessionCount session(s) connected"
+            "$ip:$port · $sessionCount session(s)"
         } else {
             "$ip:$port"
         }
@@ -197,7 +209,6 @@ class SshServerService : Service() {
                 )
             }
         } catch (_: Exception) {}
-
         return "0.0.0.0"
     }
 

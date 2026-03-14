@@ -8,6 +8,7 @@ import org.apache.sshd.common.keyprovider.KeyPairProvider
 import org.apache.sshd.common.session.Session
 import org.apache.sshd.common.session.SessionListener
 import org.apache.sshd.common.util.net.SshdSocketAddress
+import org.apache.sshd.core.CoreModuleProperties
 import org.apache.sshd.server.SshServer
 import org.apache.sshd.server.auth.password.PasswordAuthenticator
 import org.apache.sshd.server.auth.pubkey.PublickeyAuthenticator
@@ -20,10 +21,12 @@ import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.security.KeyPair
 import java.security.KeyPairGenerator
+import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CopyOnWriteArraySet
 
 data class SessionInfo(
+    val id: Long = System.nanoTime(),
     val remoteAddress: String,
     val username: String,
     val connectedAt: Long = System.currentTimeMillis()
@@ -46,8 +49,10 @@ class SshServerEngine {
     private val _activeSessions = CopyOnWriteArraySet<SessionInfo>()
     val activeSessions: Set<SessionInfo> get() = _activeSessions
 
-    // Callback for session changes (UI can observe)
     var onSessionsChanged: ((Set<SessionInfo>) -> Unit)? = null
+
+    // Map session to SessionInfo for proper removal
+    private val sessionMap = java.util.concurrent.ConcurrentHashMap<Long, SessionInfo>()
 
     interface Listener {
         fun onServerStarted(port: Int)
@@ -65,7 +70,6 @@ class SshServerEngine {
         if (sshd != null) {
             log.info("Stopping existing server before restart")
             stop()
-            try { Thread.sleep(500) } catch (_: InterruptedException) {}
         }
 
         try {
@@ -74,6 +78,19 @@ class SshServerEngine {
 
                 keyPairProvider = loadOrGenerateHostKey()
 
+                // ===== Keepalive & Timeout =====
+                // Server sends keepalive every 15 seconds to keep connection alive
+                CoreModuleProperties.HEARTBEAT_INTERVAL.set(this, Duration.ofSeconds(15))
+                // Wait up to 10 seconds for heartbeat reply
+                CoreModuleProperties.HEARTBEAT_REPLY_WAIT.set(this, Duration.ofSeconds(10))
+                // No idle timeout (keep sessions alive indefinitely)
+                CoreModuleProperties.IDLE_TIMEOUT.set(this, Duration.ZERO)
+                // Long auth timeout
+                CoreModuleProperties.AUTH_TIMEOUT.set(this, Duration.ofMinutes(5))
+                // Disable disconnect on no-reply (tolerate missed keepalives)
+                CoreModuleProperties.HEARTBEAT_NO_REPLY_MAX.set(this, 10)
+
+                // Password auth (disabled when password is empty)
                 passwordAuthenticator = PasswordAuthenticator { inputUser, inputPass, _ ->
                     val pwd = this@SshServerEngine.password
                     pwd.isNotEmpty() &&
@@ -81,6 +98,7 @@ class SshServerEngine {
                             inputPass == pwd
                 }
 
+                // Public key auth
                 publickeyAuthenticator = PublickeyAuthenticator { inputUser, key, _ ->
                     val authorized = authorizedKeysManager.isAuthorized(key)
                     if (authorized) {
@@ -96,7 +114,7 @@ class SshServerEngine {
                 subsystemFactories = listOf(SftpSubsystemFactory())
                 forwardingFilter = AcceptAllForwardingFilter.INSTANCE
 
-                // Session listener for tracking active connections
+                // Session listener
                 addSessionListener(object : SessionListener {
                     override fun sessionCreated(session: Session) {
                         val remote = session.ioSession?.remoteAddress?.toString() ?: "unknown"
@@ -109,8 +127,13 @@ class SshServerEngine {
                             val user = if (session is ServerSession) {
                                 session.username ?: "unknown"
                             } else "unknown"
-                            val info = SessionInfo(remote, user)
+                            val info = SessionInfo(
+                                id = session.ioSession?.id ?: System.nanoTime(),
+                                remoteAddress = remote,
+                                username = user
+                            )
                             _activeSessions.add(info)
+                            sessionMap[session.ioSession?.id ?: 0L] = info
                             log.info("Session authenticated: {} from {}", user, remote)
                             onSessionsChanged?.invoke(_activeSessions)
                             listeners.forEach { it.onClientConnected(remote) }
@@ -118,12 +141,12 @@ class SshServerEngine {
                     }
 
                     override fun sessionClosed(session: Session) {
-                        val remote = session.ioSession?.remoteAddress?.toString()?.removePrefix("/") ?: "unknown"
-                        val user = if (session is ServerSession) {
-                            session.username ?: "unknown"
-                        } else "unknown"
-                        _activeSessions.removeIf { it.remoteAddress == remote && it.username == user }
-                        log.info("Session closed: {} from {}", user, remote)
+                        val ioId = session.ioSession?.id ?: 0L
+                        val info = sessionMap.remove(ioId)
+                        if (info != null) {
+                            _activeSessions.remove(info)
+                        }
+                        log.info("Session closed: ioId={}", ioId)
                         onSessionsChanged?.invoke(_activeSessions)
                     }
                 })
@@ -150,11 +173,31 @@ class SshServerEngine {
                 })
             }
 
-            server.start()
-            sshd = server
-            _activeSessions.clear()
-            log.info("SSH server started on port {}", port)
-            listeners.forEach { it.onServerStarted(port) }
+            // Retry binding up to 5 times with increasing delay
+            var lastError: Exception? = null
+            for (attempt in 1..5) {
+                try {
+                    server.start()
+                    sshd = server
+                    _activeSessions.clear()
+                    sessionMap.clear()
+                    log.info("SSH server started on port {} (attempt {})", port, attempt)
+                    listeners.forEach { it.onServerStarted(port) }
+                    return
+                } catch (e: java.io.IOException) {
+                    lastError = e
+                    log.warn("Failed to bind port {} (attempt {}): {}", port, attempt, e.message)
+                    try { server.stop(true) } catch (_: Exception) {}
+                    if (attempt < 5) {
+                        Thread.sleep(attempt * 500L)
+                    }
+                }
+            }
+            // All retries failed
+            sshd = null
+            log.error("Failed to start SSH server after 5 attempts", lastError)
+            listeners.forEach { it.onServerError(lastError ?: Exception("Bind failed")) }
+
         } catch (e: Exception) {
             log.error("Failed to start SSH server", e)
             sshd = null
@@ -170,10 +213,13 @@ class SshServerEngine {
         } finally {
             sshd = null
             _activeSessions.clear()
+            sessionMap.clear()
             onSessionsChanged?.invoke(_activeSessions)
             log.info("SSH server stopped")
             listeners.forEach { it.onServerStopped() }
         }
+        // Give OS time to release the port
+        try { Thread.sleep(1000) } catch (_: InterruptedException) {}
     }
 
     private fun loadOrGenerateHostKey(): KeyPairProvider {
