@@ -1,9 +1,13 @@
 # SSH Server
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Android](https://img.shields.io/badge/Android-8.0%2B_(API_26)-green.svg)](https://developer.android.com)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.1.0-purple.svg)](https://kotlinlang.org)
+[![Release](https://img.shields.io/github/v/release/JoursBleu/ssh-server?include_prereleases)](https://github.com/JoursBleu/ssh-server/releases)
+
 基于 Apache MINA SSHD 的 Android SSH 服务器应用。
 
-[中文](#中文) | [English](#english)
-
+[中文](#中文) | [English](#english) | [Contributing](CONTRIBUTING.md) | [Changelog](CHANGELOG.md)
 ---
 
 ## 中文
