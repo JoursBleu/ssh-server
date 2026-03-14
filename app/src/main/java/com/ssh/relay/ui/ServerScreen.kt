@@ -1,6 +1,7 @@
 package com.ssh.relay.ui
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,7 +84,6 @@ fun ServerScreen() {
         } else "Server stopped"
     ) }
 
-    // Poll active sessions every second when running
     var sessions by remember { mutableStateOf<Set<SessionInfo>>(emptySet()) }
     LaunchedEffect(isRunning) {
         if (isRunning) {
@@ -99,7 +100,7 @@ fun ServerScreen() {
         ActivityResultContracts.RequestPermission()
     ) { /* granted or denied */ }
 
-    val batterySettingsLauncher = rememberLauncherForActivityResult(
+    val settingsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
         isBatteryOptimized = !pm.isIgnoringBatteryOptimizations(context.packageName)
@@ -124,45 +125,67 @@ fun ServerScreen() {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.BatteryAlert,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                        Icon(Icons.Default.BatteryAlert, null, tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            "未关闭电池优化",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
+                        Text("请关闭电池优化", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        "后台运行可能被系统终止。请关闭电池优化并允许后台运行。",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("否则切换到其他应用后 SSH 连接会中断。", style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = Uri.parse("package:${context.packageName}")
-                            }
-                            batterySettingsLauncher.launch(intent)
-                        }) {
-                            Icon(Icons.Default.BatteryAlert, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("关闭电池优化")
+                    OutlinedButton(onClick = {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:${context.packageName}")
                         }
-                        OutlinedButton(onClick = {
-                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                data = Uri.parse("package:${context.packageName}")
-                            }
-                            batterySettingsLauncher.launch(intent)
-                        }) {
-                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("应用设置")
+                        settingsLauncher.launch(intent)
+                    }) {
+                        Icon(Icons.Default.BatteryAlert, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("关闭电池优化")
+                    }
+                }
+            }
+        }
+
+        // Manufacturer-specific background tips
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.tertiary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("后台保活设置", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.tertiary)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "华为/荣耀：设置 → 应用启动管理 → SSH Server → 手动管理 → 打开全部开关\n" +
+                    "小米/红米：设置 → 应用设置 → 省电策略 → 无限制\n" +
+                    "OPPO/一加：设置 → 电池 → 后台耗电管理 → 允许后台运行\n" +
+                    "vivo：设置 → 电池 → 后台高耗电 → 允许",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Try to open manufacturer-specific settings
+                    OutlinedButton(onClick = {
+                        tryOpenBackgroundSettings(context)
+                    }) {
+                        Icon(Icons.Default.Settings, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("后台设置")
+                    }
+                    OutlinedButton(onClick = {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:${context.packageName}")
                         }
+                        settingsLauncher.launch(intent)
+                    }) {
+                        Icon(Icons.Default.Settings, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("应用详情")
                     }
                 }
             }
@@ -186,7 +209,7 @@ fun ServerScreen() {
             }
         }
 
-        // Active sessions card (only show when running)
+        // Active sessions
         if (isRunning) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -196,47 +219,22 @@ fun ServerScreen() {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Active Sessions: ${sessions.size}",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                        Text("Active Sessions: ${sessions.size}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
                     if (sessions.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         val dateFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
                         sessions.forEach { session ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    "${session.username}@${session.remoteAddress}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Text(
-                                    dateFormat.format(Date(session.connectedAt)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                                )
+                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("${session.username}@${session.remoteAddress}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                Text(dateFormat.format(Date(session.connectedAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f))
                             }
                         }
                     } else {
                         Spacer(Modifier.height(4.dp))
-                        Text(
-                            "No active connections",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
-                        )
+                        Text("No active connections", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f))
                     }
                 }
             }
@@ -279,11 +277,7 @@ fun ServerScreen() {
         )
 
         if (password.isEmpty() && !isRunning) {
-            Text(
-                "Password auth disabled. Use SSH keys to connect.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text("Password auth disabled. Use SSH keys to connect.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         Spacer(Modifier.weight(1f))
@@ -304,19 +298,16 @@ fun ServerScreen() {
                         .apply()
 
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                            != PackageManager.PERMISSION_GRANTED
-                        ) {
+                        if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                             notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
 
                     if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
                         try {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                                 data = Uri.parse("package:${context.packageName}")
-                            }
-                            context.startActivity(intent)
+                            })
                         } catch (_: Exception) {}
                     }
 
@@ -331,22 +322,48 @@ fun ServerScreen() {
                     statusText = "Listening on port $p\nUser: $username\nAuth: $authMethods"
                 }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (isRunning)
-                    MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.primary
+                containerColor = if (isRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             )
         ) {
-            Icon(
-                if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow, null, Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))
             Text(if (isRunning) "Stop Server" else "Start Server")
         }
     }
+}
+
+/** Try to open manufacturer-specific background/autostart settings */
+private fun tryOpenBackgroundSettings(context: Context) {
+    val intents = listOf(
+        // Huawei
+        Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")),
+        Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity")),
+        Intent().setComponent(ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity")),
+        // Xiaomi
+        Intent().setComponent(ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
+        // OPPO
+        Intent().setComponent(ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")),
+        // vivo
+        Intent().setComponent(ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")),
+        // Samsung
+        Intent().setComponent(ComponentName("com.samsung.android.lool", "com.samsung.android.sm.battery.ui.BatteryActivity")),
+    )
+    for (intent in intents) {
+        try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (context.packageManager.resolveActivity(intent, 0) != null) {
+                context.startActivity(intent)
+                return
+            }
+        } catch (_: Exception) {}
+    }
+    // Fallback: open app detail settings
+    try {
+        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    } catch (_: Exception) {}
 }

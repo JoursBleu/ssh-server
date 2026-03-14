@@ -12,6 +12,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import com.ssh.relay.engine.SessionInfo
@@ -27,44 +28,74 @@ class SshServerService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var networkRequestCallback: ConnectivityManager.NetworkCallback? = null
     private val executor = Executors.newSingleThreadExecutor()
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
 
+        // CPU wake lock - prevent CPU sleep
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SshServer::CpuWakeLock").apply {
+        wakeLock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK or PowerManager.ON_AFTER_RELEASE,
+            "SshServer::CpuWakeLock"
+        ).apply {
             acquire()
         }
 
+        // WiFi lock - keep WiFi radio active
         try {
             val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-            @Suppress("DEPRECATION")
-            wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "SshServer::WifiLock").apply {
+            val lockMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+            } else {
+                @Suppress("DEPRECATION")
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF
+            }
+            wifiLock = wm.createWifiLock(lockMode, "SshServer::WifiLock").apply {
                 acquire()
             }
         } catch (_: Exception) {}
 
+        // Actively request network to prevent Android from releasing it
         try {
             val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val request = NetworkRequest.Builder()
+
+            // Request to keep a network connection alive
+            val netRequest = NetworkRequest.Builder()
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
                 .build()
-            val callback = object : ConnectivityManager.NetworkCallback() {
+            val reqCallback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
-                    val ip = getDeviceIp()
-                    val nm = getSystemService(NotificationManager::class.java)
-                    nm.notify(NOTIFICATION_ID, buildNotification(ip, _currentPort))
+                    // Bind process to this network to prevent switching
+                    cm.bindProcessToNetwork(network)
+                    android.util.Log.i("SshServerService", "Bound to network: $network")
+                    updateNotification()
                 }
                 override fun onLost(network: Network) {
-                    val nm = getSystemService(NotificationManager::class.java)
-                    nm.notify(NOTIFICATION_ID, buildNotification("No network", _currentPort))
+                    cm.bindProcessToNetwork(null)
+                    android.util.Log.w("SshServerService", "Lost network: $network")
+                    updateNotificationText("No network")
                 }
             }
-            cm.registerNetworkCallback(request, callback)
-            networkCallback = callback
-        } catch (_: Exception) {}
+            cm.requestNetwork(netRequest, reqCallback)
+            networkRequestCallback = reqCallback
+
+            // Also register a passive listener for IP changes
+            val monitorRequest = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            val monCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) { updateNotification() }
+                override fun onLost(network: Network) { updateNotificationText("No network") }
+            }
+            cm.registerNetworkCallback(monitorRequest, monCallback)
+            networkCallback = monCallback
+        } catch (e: Exception) {
+            android.util.Log.e("SshServerService", "Network setup failed", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -80,7 +111,6 @@ class SshServerService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification(ip, port))
         _isRunning = true
 
-        // Run engine start on background thread (stop may block for port release)
         executor.submit {
             try {
                 engine?.stop()
@@ -92,11 +122,7 @@ class SshServerService : Service() {
                 eng.password = pass
                 eng.onSessionsChanged = { sessions ->
                     _activeSessions = sessions.toSet()
-                    try {
-                        val currentIp = getDeviceIp()
-                        val nm = getSystemService(NotificationManager::class.java)
-                        nm.notify(NOTIFICATION_ID, buildNotification(currentIp, port))
-                    } catch (_: Exception) {}
+                    updateNotification()
                 }
                 eng.start()
                 engine = eng
@@ -113,7 +139,6 @@ class SshServerService : Service() {
         _isRunning = false
         _activeSessions = emptySet()
 
-        // Stop engine on background thread but don't wait too long
         try {
             executor.submit { engine?.stop(); engine = null }.get(5, java.util.concurrent.TimeUnit.SECONDS)
         } catch (_: Exception) {
@@ -127,13 +152,13 @@ class SshServerService : Service() {
         wifiLock?.let { if (it.isHeld) it.release() }
         wifiLock = null
 
-        networkCallback?.let {
-            try {
-                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                cm.unregisterNetworkCallback(it)
-            } catch (_: Exception) {}
-        }
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        networkCallback?.let { try { cm.unregisterNetworkCallback(it) } catch (_: Exception) {} }
         networkCallback = null
+        networkRequestCallback?.let { try { cm.unregisterNetworkCallback(it) } catch (_: Exception) {} }
+        networkRequestCallback = null
+
+        try { cm.bindProcessToNetwork(null) } catch (_: Exception) {}
 
         executor.shutdownNow()
         super.onDestroy()
@@ -142,7 +167,23 @@ class SshServerService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        // Keep running when swiped from recents
         super.onTaskRemoved(rootIntent)
+    }
+
+    private fun updateNotification() {
+        try {
+            val ip = getDeviceIp()
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.notify(NOTIFICATION_ID, buildNotification(ip, _currentPort))
+        } catch (_: Exception) {}
+    }
+
+    private fun updateNotificationText(text: String) {
+        try {
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.notify(NOTIFICATION_ID, buildNotification(text, _currentPort))
+        } catch (_: Exception) {}
     }
 
     private fun createNotificationChannel() {
@@ -152,6 +193,7 @@ class SshServerService : Service() {
             NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = "SSH Server running notification"
+            setShowBadge(false)
         }
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(channel)
@@ -161,7 +203,7 @@ class SshServerService : Service() {
         val pendingIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val sessionCount = _activeSessions.size
         val text = if (sessionCount > 0) {
@@ -175,6 +217,8 @@ class SshServerService : Service() {
             .setSmallIcon(android.R.drawable.ic_menu_share)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 
