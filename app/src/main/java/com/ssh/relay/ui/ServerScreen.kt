@@ -1,6 +1,7 @@
 package com.ssh.relay.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,21 +25,36 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.ssh.relay.service.SshServerService
 
+private const val PREFS_NAME = "ssh_server_prefs"
+private const val KEY_PORT = "port"
+private const val KEY_USERNAME = "username"
+private const val KEY_PASSWORD = "password"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServerScreen() {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
-    // Restore state from running service
+    // Priority: running service state > saved prefs > defaults
     var isRunning by remember { mutableStateOf(SshServerService.isRunning) }
     var port by remember { mutableStateOf(
-        if (SshServerService.isRunning) SshServerService.currentPort.toString() else "2222"
+        when {
+            SshServerService.isRunning -> SshServerService.currentPort.toString()
+            else -> prefs.getString(KEY_PORT, "2222") ?: "2222"
+        }
     ) }
     var username by remember { mutableStateOf(
-        if (SshServerService.isRunning) SshServerService.currentUser else "red"
+        when {
+            SshServerService.isRunning -> SshServerService.currentUser
+            else -> prefs.getString(KEY_USERNAME, "red") ?: "red"
+        }
     ) }
     var password by remember { mutableStateOf(
-        if (SshServerService.isRunning) SshServerService.currentPass else ""
+        when {
+            SshServerService.isRunning -> SshServerService.currentPass
+            else -> prefs.getString(KEY_PASSWORD, "") ?: ""
+        }
     ) }
     var showPassword by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf(
@@ -136,6 +152,13 @@ fun ServerScreen() {
                     isRunning = false
                     statusText = "Server stopped"
                 } else {
+                    // Save settings to SharedPreferences before starting
+                    prefs.edit()
+                        .putString(KEY_PORT, port)
+                        .putString(KEY_USERNAME, username)
+                        .putString(KEY_PASSWORD, password)
+                        .apply()
+
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                             != PackageManager.PERMISSION_GRANTED
