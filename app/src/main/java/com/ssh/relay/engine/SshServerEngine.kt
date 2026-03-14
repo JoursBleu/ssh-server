@@ -88,14 +88,17 @@ class SshServerEngine {
         when (portStatus) {
             PortChecker.PortStatus.FREE -> { /* good to go */ }
             PortChecker.PortStatus.USED_BY_US -> {
-                // Stale from our previous run, force kill by stopping again and waiting
-                log.warn("Port {} still held by us (stale), waiting for release...", port)
-                Thread.sleep(2000)
-                // Re-check
-                val recheck = PortChecker.checkPort(port)
-                if (recheck != PortChecker.PortStatus.FREE) {
-                    log.warn("Port {} still not free after wait, status={}", port, recheck)
-                    // Try harder - it might be from an old server instance
+                log.warn("Port {} held by us (stale), force releasing...", port)
+                val released = PortChecker.forceReleaseOurPort(port)
+                if (!released) {
+                    log.warn("Force release didn't free port, waiting 3s...")
+                    Thread.sleep(3000)
+                    val recheck = PortChecker.checkPort(port)
+                    if (recheck == PortChecker.PortStatus.USED_BY_OTHER) {
+                        return StartResult.PortUsedByOther(port)
+                    } else if (recheck == PortChecker.PortStatus.USED_BY_US) {
+                        log.warn("Port {} STILL held by us after force release, will retry bind anyway", port)
+                    }
                 }
             }
             PortChecker.PortStatus.USED_BY_OTHER -> {
