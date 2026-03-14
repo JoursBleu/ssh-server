@@ -1,4 +1,4 @@
-package com.ssh.relay.engine
+package com.ssh.server.engine
 
 import org.apache.sshd.client.SshClient
 import org.apache.sshd.client.session.ClientSession

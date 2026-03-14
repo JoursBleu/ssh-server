@@ -1,4 +1,4 @@
-package com.ssh.relay.service
+package com.ssh.server.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -15,10 +15,10 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import com.ssh.relay.engine.SessionInfo
-import com.ssh.relay.engine.StartResult
-import com.ssh.relay.engine.SshServerEngine
-import com.ssh.relay.ui.MainActivity
+import com.ssh.server.engine.SessionInfo
+import com.ssh.server.engine.StartResult
+import com.ssh.server.engine.SshServerEngine
+import com.ssh.server.ui.MainActivity
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.concurrent.Executors
@@ -268,7 +268,7 @@ class SshServerService : Service() {
     companion object {
         private const val CHANNEL_ID = "ssh_server_channel"
         private const val NOTIFICATION_ID = 1
-        const val ACTION_STOP = "com.ssh.relay.STOP"
+        const val ACTION_STOP = "com.ssh.server.STOP"
         const val EXTRA_PORT = "port"
         const val EXTRA_USER = "user"
         const val EXTRA_PASS = "pass"

@@ -1,4 +1,4 @@
-package com.ssh.relay.ui
+package com.ssh.server.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons

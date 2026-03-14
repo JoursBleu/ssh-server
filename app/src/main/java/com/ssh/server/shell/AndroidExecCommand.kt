@@ -1,4 +1,4 @@
-package com.ssh.relay.shell
+package com.ssh.server.shell
 
 import org.apache.sshd.server.Environment
 import org.apache.sshd.server.ExitCallback
@@ -39,7 +39,7 @@ class AndroidExecCommand(private val command: String) : Command {
                 val shell = AndroidShellCommand.getShell()
 
                 // App internal .ssh directory (where AuthorizedKeysManager stores keys)
-                val appHome = com.ssh.relay.SshServerApp.instance.filesDir.absolutePath
+                val appHome = com.ssh.server.SshServerApp.instance.filesDir.absolutePath
                 val sshDir = File(appHome, ".ssh")
                 sshDir.mkdirs()
 

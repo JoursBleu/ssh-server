@@ -1,4 +1,4 @@
-package com.ssh.relay.shell
+package com.ssh.server.shell
 
 /**
  * JNI bridge for PTY operations using native forkpty/openpty.

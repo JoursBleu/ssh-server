@@ -1,4 +1,4 @@
-package com.ssh.relay.ui
+package com.ssh.server.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
@@ -25,8 +25,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ssh.relay.engine.AuthorizedKeysManager
-import com.ssh.relay.engine.SshServerEngine
+import com.ssh.server.engine.AuthorizedKeysManager
+import com.ssh.server.engine.SshServerEngine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

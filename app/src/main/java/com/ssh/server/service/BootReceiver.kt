@@ -1,4 +1,4 @@
-package com.ssh.relay.service
+package com.ssh.server.service
 
 import android.content.BroadcastReceiver
 import android.content.Context

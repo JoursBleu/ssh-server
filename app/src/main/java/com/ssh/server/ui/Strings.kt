@@ -1,4 +1,4 @@
-package com.ssh.relay.ui
+package com.ssh.server.ui
 
 import android.content.Context
 import androidx.compose.runtime.compositionLocalOf

@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.ssh.relay"
+    namespace = "com.ssh.server"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.ssh.relay"
+        applicationId = "com.ssh.server"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

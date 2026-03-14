@@ -1,4 +1,4 @@
-package com.ssh.relay.shell
+package com.ssh.server.shell
 
 import org.apache.sshd.server.channel.ChannelSession
 import org.apache.sshd.server.command.Command

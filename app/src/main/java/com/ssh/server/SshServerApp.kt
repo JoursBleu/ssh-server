@@ -1,4 +1,4 @@
-package com.ssh.relay
+package com.ssh.server
 
 import android.app.Application
 import org.apache.sshd.common.util.OsUtils

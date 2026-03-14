@@ -1,4 +1,4 @@
-package com.ssh.relay.ui
+package com.ssh.server.ui
 
 import android.Manifest
 import android.content.Context
@@ -38,9 +38,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import com.ssh.relay.engine.SessionInfo
-import com.ssh.relay.service.SshServerService
-import com.ssh.relay.service.SshServerService.ServerState
+import com.ssh.server.engine.SessionInfo
+import com.ssh.server.service.SshServerService
+import com.ssh.server.service.SshServerService.ServerState
 import java.io.File
 import java.io.ObjectInputStream
 import java.security.KeyPair

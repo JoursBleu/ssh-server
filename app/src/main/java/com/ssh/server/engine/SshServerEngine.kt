@@ -1,8 +1,8 @@
-package com.ssh.relay.engine
+package com.ssh.server.engine
 
-import com.ssh.relay.SshServerApp
-import com.ssh.relay.shell.AndroidShellFactory
-import com.ssh.relay.shell.AndroidCommandFactory
+import com.ssh.server.SshServerApp
+import com.ssh.server.shell.AndroidShellFactory
+import com.ssh.server.shell.AndroidCommandFactory
 import org.apache.sshd.common.forward.PortForwardingEventListener
 import org.apache.sshd.common.keyprovider.KeyPairProvider
 import org.apache.sshd.common.session.Session

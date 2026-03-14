@@ -1,6 +1,6 @@
-package com.ssh.relay.engine
+package com.ssh.server.engine
 
-import com.ssh.relay.SshServerApp
+import com.ssh.server.SshServerApp
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.security.PublicKey

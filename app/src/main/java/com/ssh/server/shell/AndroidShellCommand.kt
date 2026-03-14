@@ -1,7 +1,7 @@
-package com.ssh.relay.shell
+package com.ssh.server.shell
 
 import android.content.Context
-import com.ssh.relay.SshServerApp
+import com.ssh.server.SshServerApp
 import org.apache.sshd.server.Environment
 import org.apache.sshd.server.ExitCallback
 import org.apache.sshd.server.channel.ChannelSession
