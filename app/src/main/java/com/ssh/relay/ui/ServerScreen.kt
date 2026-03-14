@@ -2,8 +2,12 @@ package com.ssh.relay.ui
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -11,12 +15,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -35,6 +42,12 @@ private const val KEY_PASSWORD = "password"
 fun ServerScreen() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
+    // Check battery optimization status
+    val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    var isBatteryOptimized by remember {
+        mutableStateOf(!pm.isIgnoringBatteryOptimizations(context.packageName))
+    }
 
     // Priority: running service state > saved prefs > defaults
     var isRunning by remember { mutableStateOf(SshServerService.isRunning) }
@@ -71,6 +84,13 @@ fun ServerScreen() {
         ActivityResultContracts.RequestPermission()
     ) { /* granted or denied */ }
 
+    // Launcher for battery optimization settings - refresh state on return
+    val batterySettingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        isBatteryOptimized = !pm.isIgnoringBatteryOptimizations(context.packageName)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -79,6 +99,66 @@ fun ServerScreen() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("SSH Server", style = MaterialTheme.typography.headlineMedium)
+
+        // Battery optimization warning
+        if (isBatteryOptimized) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.BatteryAlert,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "未关闭电池优化",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "后台运行可能被系统终止。请点击下方按钮关闭电池优化，并在系统设置中允许后台运行。",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                // Request ignore battery optimizations directly
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                batterySettingsLauncher.launch(intent)
+                            }
+                        ) {
+                            Icon(Icons.Default.BatteryAlert, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("关闭电池优化")
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                // Open app detail settings for manual background permission
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                batterySettingsLauncher.launch(intent)
+                            }
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("应用设置")
+                        }
+                    }
+                }
+            }
+        }
 
         // Status card
         Card(
@@ -152,13 +232,14 @@ fun ServerScreen() {
                     isRunning = false
                     statusText = "Server stopped"
                 } else {
-                    // Save settings to SharedPreferences before starting
+                    // Save settings
                     prefs.edit()
                         .putString(KEY_PORT, port)
                         .putString(KEY_USERNAME, username)
                         .putString(KEY_PASSWORD, password)
                         .apply()
 
+                    // Request notification permission
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                             != PackageManager.PERMISSION_GRANTED
@@ -166,9 +247,21 @@ fun ServerScreen() {
                             notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
+
+                    // Request ignore battery optimizations if not already
+                    if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                        try {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                    }
+
                     val p = port.toIntOrNull() ?: 2222
                     SshServerService.start(context, p, username, password)
                     isRunning = true
+                    isBatteryOptimized = !pm.isIgnoringBatteryOptimizations(context.packageName)
                     val authMethods = buildList {
                         if (password.isNotEmpty()) add("password")
                         add("publickey")
