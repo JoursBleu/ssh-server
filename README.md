@@ -253,3 +253,17 @@ app/src/main/java/com/ssh/relay/
 ### License
 
 [Apache License 2.0](LICENSE)
+
+---
+
+### Support / 赞助
+
+If you find this project useful, consider buying me a coffee ☕
+
+如果这个项目对你有帮助，欢迎请我喝杯咖啡 ☕
+
+**Crypto (ETH/ERC-20):**
+
+```
+0x809EC3201f6bdFb3d428Ca7f0E10F3b55476a1c4
+```
