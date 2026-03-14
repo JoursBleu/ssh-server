@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://joursbleu.github.io/ssh-server/sitemap.xml

@@ -1,86 +1,111 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="google-site-verification" content="AWl1KvffncWtkBzHG9EkyPN5bxQRxne9-5xpV5tN_DY" />
 <title>SSH Server - Android SSH 服务器</title>
 <style>
+/* ===== Light Theme (default) ===== */
 :root {
+  --bg: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --card: #ffffff;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+  --green: #1a7f37;
+  --green-bg: #1a7f37;
+  --code-bg: #f6f8fa;
+  --code-text: #1a7f37;
+  --hero-bg: linear-gradient(135deg, #f6f8fa 0%, #ffffff 50%, #f0f3f6 100%);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --theme-icon: "🌙";
+}
+
+/* ===== Dark Theme ===== */
+[data-theme="dark"] {
   --bg: #0d1117;
+  --bg-secondary: #161b22;
   --card: #161b22;
   --border: #30363d;
   --text: #e6edf3;
   --muted: #8b949e;
   --accent: #58a6ff;
   --green: #3fb950;
-  --purple: #bc8cff;
+  --green-bg: #3fb950;
+  --code-bg: #0d1117;
+  --code-text: #3fb950;
+  --hero-bg: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #1a1f2b 100%);
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --theme-icon: "☀️";
 }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
+  transition: background 0.3s, color 0.3s;
 }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* ===== Top bar ===== */
+.topbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+.topbar-btn:hover { color: var(--text); border-color: var(--muted); }
+
+/* ===== Hero ===== */
 .hero {
   text-align: center;
-  padding: 80px 20px 60px;
-  background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #1a1f2b 100%);
+  padding: 120px 20px 60px;
+  background: var(--hero-bg);
 }
-.hero h1 {
-  font-size: 3rem;
-  font-weight: 700;
-  margin-bottom: 16px;
-}
+.hero h1 { font-size: 3rem; font-weight: 700; margin-bottom: 16px; }
 .hero h1 .prompt { color: var(--green); }
-.hero p {
-  font-size: 1.25rem;
-  color: var(--muted);
-  max-width: 600px;
-  margin: 0 auto 32px;
-}
+.hero p { font-size: 1.25rem; color: var(--muted); max-width: 600px; margin: 0 auto 32px; }
 .badges { margin-bottom: 32px; }
 .badges img { margin: 0 4px; }
 .btn-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all 0.2s;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 24px; border-radius: 8px;
+  font-size: 1rem; font-weight: 600; transition: all 0.2s;
 }
-.btn-primary {
-  background: var(--green);
-  color: #000;
-}
-.btn-primary:hover { background: #2ea043; text-decoration: none; }
-.btn-secondary {
-  background: var(--card);
-  color: var(--text);
-  border: 1px solid var(--border);
-}
+.btn-primary { background: var(--green-bg); color: #fff; }
+.btn-primary:hover { opacity: 0.85; text-decoration: none; }
+.btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
 .btn-secondary:hover { border-color: var(--muted); text-decoration: none; }
 
-.container {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
-
+.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
 section { padding: 60px 0; }
-section h2 {
-  font-size: 2rem;
-  margin-bottom: 32px;
-  text-align: center;
-}
+section h2 { font-size: 2rem; margin-bottom: 32px; text-align: center; }
 
+/* ===== Features ===== */
 .features {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -91,94 +116,49 @@ section h2 {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
+  box-shadow: var(--shadow);
+  transition: background 0.3s, border 0.3s;
 }
-.feature-card h3 {
-  font-size: 1.1rem;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.feature-card h3 { font-size: 1.1rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
 .feature-card p { color: var(--muted); font-size: 0.95rem; }
 .feature-icon { font-size: 1.3rem; }
 
-.screenshots {
-  background: var(--card);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-.screenshot-grid {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
+/* ===== Screenshots ===== */
+.screenshots { background: var(--bg-secondary); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.screenshot-grid { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 .screenshot-grid img {
-  width: 220px;
-  border-radius: 16px;
-  border: 2px solid var(--border);
-  transition: transform 0.2s;
+  width: 220px; border-radius: 16px; border: 2px solid var(--border);
+  transition: transform 0.2s; box-shadow: var(--shadow);
 }
 .screenshot-grid img:hover { transform: scale(1.05); }
 
-.tech-table {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  border-collapse: collapse;
-}
-.tech-table th, .tech-table td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-}
+/* ===== Tech table ===== */
+.tech-table { width: 100%; max-width: 600px; margin: 0 auto; border-collapse: collapse; }
+.tech-table th, .tech-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
 .tech-table th { color: var(--muted); font-weight: 500; }
 
+/* ===== Quickstart ===== */
 .quickstart {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 700px;
-  margin: 0 auto;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px; max-width: 700px; margin: 0 auto;
+  box-shadow: var(--shadow);
 }
+.quickstart p { margin-bottom: 4px; }
 .quickstart code {
-  display: block;
-  background: var(--bg);
-  padding: 16px;
-  border-radius: 8px;
-  font-family: 'SF Mono', Consolas, monospace;
-  font-size: 0.9rem;
-  overflow-x: auto;
-  margin: 8px 0;
-  color: var(--green);
+  display: block; background: var(--code-bg); padding: 16px; border-radius: 8px;
+  font-family: 'SF Mono', Consolas, monospace; font-size: 0.9rem;
+  overflow-x: auto; margin: 8px 0; color: var(--code-text);
 }
 .quickstart .comment { color: var(--muted); }
 
+/* ===== Footer ===== */
 footer {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--muted);
-  font-size: 0.9rem;
-  border-top: 1px solid var(--border);
+  text-align: center; padding: 40px 20px; color: var(--muted);
+  font-size: 0.9rem; border-top: 1px solid var(--border);
 }
-
-.lang-switch {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 12px;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  z-index: 100;
-}
-.lang-switch:hover { color: var(--text); border-color: var(--muted); }
 
 @media (max-width: 768px) {
+  .hero { padding: 100px 20px 40px; }
   .hero h1 { font-size: 2rem; }
   .hero p { font-size: 1rem; }
   .screenshot-grid img { width: 160px; }
@@ -187,12 +167,16 @@ footer {
 </head>
 <body>
 
-<button class="lang-switch" onclick="toggleLang()" id="langBtn">English</button>
+<!-- Top bar -->
+<div class="topbar">
+  <button class="topbar-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
+  <button class="topbar-btn" onclick="toggleLang()" id="langBtn">中文</button>
+</div>
 
 <!-- Hero -->
 <div class="hero">
   <h1><span class="prompt">&gt;_</span> SSH Server</h1>
-  <p id="heroDesc">Android SSH 服务器应用，把手机变成移动的服务器 / 跳板机。</p>
+  <p data-zh="Android SSH 服务器应用，把手机变成移动的服务器 / 跳板机。" data-en="An Android SSH server app that turns your phone into a portable server / jump host.">Android SSH 服务器应用，把手机变成移动的服务器 / 跳板机。</p>
   <div class="badges">
     <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License">
     <img src="https://img.shields.io/badge/Android-8.0%2B_(API_26)-green.svg" alt="Android">
@@ -220,35 +204,35 @@ footer {
       </div>
       <div class="feature-card">
         <h3><span class="feature-icon">🔗</span> <span data-zh="跳板机" data-en="Jump Host">跳板机</span></h3>
-        <p data-zh="将手机作为 SSH 跳板机 (ssh -J)，随时随地中继连接。" data-en="Use your phone as an SSH jump host (ssh -J), relay connections anywhere.">将手机作为 SSH 跳板机 (ssh -J)，随时随地中继连接。</p>
+        <p data-zh="将手机作为 SSH 跳板机 (ssh -J)，随时随地中继连接。" data-en="Use your phone as an SSH jump host (ssh -J), relay connections from anywhere.">将手机作为 SSH 跳板机 (ssh -J)，随时随地中继连接。</p>
       </div>
       <div class="feature-card">
         <h3><span class="feature-icon">📁</span> <span data-zh="SFTP 文件传输" data-en="SFTP Transfer">SFTP 文件传输</span></h3>
         <p data-zh="内置 SFTP 子系统，安全传输文件到手机或从手机传出。" data-en="Built-in SFTP subsystem for secure file transfers to and from your phone.">内置 SFTP 子系统，安全传输文件到手机或从手机传出。</p>
       </div>
       <div class="feature-card">
-        <h3><span class="feature-icon">🔐</span> <span data-zh="密钥认证" data-en="Key Auth">密钥认证</span></h3>
-        <p data-zh="支持公钥认证和 ssh-copy-id，也可选密码认证。" data-en="Public key auth with ssh-copy-id support, optional password auth.">支持公钥认证和 ssh-copy-id，也可选密码认证。</p>
+        <h3><span class="feature-icon">🔐</span> <span data-zh="密钥认证" data-en="Key Authentication">密钥认证</span></h3>
+        <p data-zh="支持公钥认证和 ssh-copy-id，也可选密码认证。" data-en="Public key authentication with ssh-copy-id support, optional password auth.">支持公钥认证和 ssh-copy-id，也可选密码认证。</p>
       </div>
       <div class="feature-card">
         <h3><span class="feature-icon">⚡</span> <span data-zh="原生终端" data-en="Native PTY">原生终端</span></h3>
-        <p data-zh="JNI 原生 PTY 支持 (/dev/ptmx)，完整的交互式终端体验。" data-en="Native PTY via JNI (/dev/ptmx), full interactive terminal experience.">JNI 原生 PTY 支持 (/dev/ptmx)，完整的交互式终端体验。</p>
+        <p data-zh="JNI 原生 PTY 支持 (/dev/ptmx)，完整的交互式终端体验。" data-en="Native PTY via JNI (/dev/ptmx) with ProcessBuilder fallback, full interactive terminal.">JNI 原生 PTY 支持 (/dev/ptmx)，完整的交互式终端体验。</p>
       </div>
       <div class="feature-card">
         <h3><span class="feature-icon">🔋</span> <span data-zh="后台常驻" data-en="Background Service">后台常驻</span></h3>
-        <p data-zh="前台服务 + WakeLock + WifiLock，切换应用或熄屏不断连。" data-en="Foreground service + WakeLock + WifiLock, stays alive through app switch and screen off.">前台服务 + WakeLock + WifiLock，切换应用或熄屏不断连。</p>
+        <p data-zh="前台服务 + WakeLock + WifiLock，切换应用或熄屏不断连。" data-en="Foreground service with WakeLock + WifiLock + NetworkCallback, survives app switch and screen off.">前台服务 + WakeLock + WifiLock，切换应用或熄屏不断连。</p>
       </div>
       <div class="feature-card">
         <h3><span class="feature-icon">🚀</span> <span data-zh="开机自启" data-en="Boot Auto-Start">开机自启</span></h3>
-        <p data-zh="可选开机后自动启动 SSH 服务，无需手动操作。" data-en="Optionally start SSH server on device boot, no manual action needed.">可选开机后自动启动 SSH 服务，无需手动操作。</p>
+        <p data-zh="可选开机后自动启动 SSH 服务，无需手动操作。" data-en="Optionally start SSH server automatically on device boot.">可选开机后自动启动 SSH 服务，无需手动操作。</p>
       </div>
       <div class="feature-card">
-        <h3><span class="feature-icon">🌐</span> <span data-zh="中英双语" data-en="i18n">中英双语</span></h3>
-        <p data-zh="运行时中英文界面即时切换，Material 3 动态主题。" data-en="Runtime Chinese/English UI switching, Material 3 dynamic theme.">运行时中英文界面即时切换，Material 3 动态主题。</p>
+        <h3><span class="feature-icon">🌐</span> <span data-zh="中英双语" data-en="Bilingual UI">中英双语</span></h3>
+        <p data-zh="运行时中英文界面即时切换，Material 3 动态主题。" data-en="Runtime Chinese / English UI switching with Material 3 dynamic theme.">运行时中英文界面即时切换，Material 3 动态主题。</p>
       </div>
       <div class="feature-card">
         <h3><span class="feature-icon">📊</span> <span data-zh="会话追踪" data-en="Session Tracking">会话追踪</span></h3>
-        <p data-zh="实时显示活跃 SSH 会话，内置 keepalive 保活机制。" data-en="Real-time active session display with built-in keepalive.">实时显示活跃 SSH 会话，内置 keepalive 保活机制。</p>
+        <p data-zh="实时显示活跃 SSH 会话，内置 keepalive 保活机制。" data-en="Real-time active SSH session display with built-in keepalive mechanism.">实时显示活跃 SSH 会话，内置 keepalive 保活机制。</p>
       </div>
     </div>
   </div>
@@ -259,9 +243,9 @@ footer {
   <div class="container">
     <h2 data-zh="界面截图" data-en="Screenshots">界面截图</h2>
     <div class="screenshot-grid" id="screenshotGrid">
-      <img src="screenshots/server_zn.jpg" alt="服务" data-zh-src="screenshots/server_zn.jpg" data-en-src="screenshots/server.jpg">
-      <img src="screenshots/keys_zn.jpg" alt="密钥" data-zh-src="screenshots/keys_zn.jpg" data-en-src="screenshots/keys.jpg">
-      <img src="screenshots/settings_zn.jpg" alt="设置" data-zh-src="screenshots/settings_zn.jpg" data-en-src="screenshots/settings.jpg">
+      <img data-zh-src="screenshots/server_zn.jpg" data-en-src="screenshots/server.jpg" src="screenshots/server_zn.jpg" data-zh-alt="服务" data-en-alt="Server" alt="服务">
+      <img data-zh-src="screenshots/keys_zn.jpg" data-en-src="screenshots/keys.jpg" src="screenshots/keys_zn.jpg" data-zh-alt="密钥" data-en-alt="Keys" alt="密钥">
+      <img data-zh-src="screenshots/settings_zn.jpg" data-en-src="screenshots/settings.jpg" src="screenshots/settings_zn.jpg" data-zh-alt="设置" data-en-alt="Settings" alt="设置">
     </div>
   </div>
 </section>
@@ -271,17 +255,17 @@ footer {
   <div class="container">
     <h2 data-zh="快速开始" data-en="Quick Start">快速开始</h2>
     <div class="quickstart">
-      <p data-zh="1. 安装 APK，打开应用" data-en="1. Install APK, open the app">1. 安装 APK，打开应用</p>
+      <p data-zh="1. 安装 APK，打开应用" data-en="1. Install the APK and open the app">1. 安装 APK，打开应用</p>
       <p data-zh="2. 配置用户名 / 密码 / 端口（默认 red / 空 / 2222）" data-en="2. Configure username / password / port (default: red / empty / 2222)">2. 配置用户名 / 密码 / 端口（默认 red / 空 / 2222）</p>
-      <p data-zh="3. 点击「启动服务」" data-en="3. Tap 'Start Server'">3. 点击「启动服务」</p>
+      <p data-zh="3. 点击「启动服务」" data-en="3. Tap &quot;Start Server&quot;">3. 点击「启动服务」</p>
       <p data-zh="4. 从电脑连接：" data-en="4. Connect from your computer:">4. 从电脑连接：</p>
       <code><span class="comment"># SSH</span>
 ssh -p 2222 red@&lt;phone-ip&gt;
 
-<span class="comment"># 公钥认证 / Key auth</span>
+<span class="comment"># Key auth</span>
 ssh-copy-id -p 2222 red@&lt;phone-ip&gt;
 
-<span class="comment"># 跳板机 / Jump host</span>
+<span class="comment"># Jump host</span>
 ssh -J red@&lt;phone-ip&gt;:2222 user@target
 
 <span class="comment"># SFTP</span>
@@ -317,18 +301,53 @@ sftp -P 2222 red@&lt;phone-ip&gt;</code>
 </footer>
 
 <script>
-let lang = 'zh';
-function toggleLang() {
-  lang = lang === 'zh' ? 'en' : 'zh';
+// ===== Theme =====
+function getSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeBtn').textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || getSystemTheme();
+  const next = cur === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('theme', next);
+  applyTheme(next);
+}
+// Init theme: saved > system
+const savedTheme = localStorage.getItem('theme');
+applyTheme(savedTheme || getSystemTheme());
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+  if (!localStorage.getItem('theme')) applyTheme(e.matches ? 'dark' : 'light');
+});
+
+// ===== Language =====
+let lang = 'en';
+function applyLang(l) {
+  lang = l;
   document.getElementById('langBtn').textContent = lang === 'zh' ? 'English' : '中文';
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.title = lang === 'zh' ? 'SSH Server - Android SSH 服务器' : 'SSH Server - Android SSH Server';
   document.querySelectorAll('[data-zh]').forEach(el => {
-    el.textContent = el.getAttribute('data-' + lang);
+    const val = el.getAttribute('data-' + lang);
+    if (val) el.innerHTML = val;
   });
   document.querySelectorAll('[data-zh-src]').forEach(img => {
     img.src = img.getAttribute('data-' + lang + '-src');
+    const alt = img.getAttribute('data-' + lang + '-alt');
+    if (alt) img.alt = alt;
   });
 }
+function toggleLang() {
+  const next = lang === 'zh' ? 'en' : 'zh';
+  localStorage.setItem('lang', next);
+  applyLang(next);
+}
+// Init lang
+const savedLang = localStorage.getItem('lang');
+applyLang(savedLang || 'en');
 </script>
 </body>
 </html>
