@@ -7,24 +7,67 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.IBinder
 import android.os.PowerManager
 import com.ssh.relay.engine.SshServerEngine
 import com.ssh.relay.ui.MainActivity
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 class SshServerService : Service() {
 
     private var engine: SshServerEngine? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        // CPU wake lock
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SshServer::WakeLock").apply {
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SshServer::CpuWakeLock").apply {
             acquire()
         }
+
+        // WiFi lock - keep WiFi active when screen off
+        try {
+            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            @Suppress("DEPRECATION")
+            wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "SshServer::WifiLock").apply {
+                acquire()
+            }
+        } catch (_: Exception) {}
+
+        // Request network keep-alive (works for both WiFi and mobile data)
+        try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    // Network is available, update notification with new IP
+                    val ip = getDeviceIp()
+                    val port = _currentPort
+                    val nm = getSystemService(NotificationManager::class.java)
+                    nm.notify(NOTIFICATION_ID, buildNotification(ip, port))
+                }
+
+                override fun onLost(network: Network) {
+                    val nm = getSystemService(NotificationManager::class.java)
+                    nm.notify(NOTIFICATION_ID, buildNotification("No network", _currentPort))
+                }
+            }
+            cm.registerNetworkCallback(request, callback)
+            networkCallback = callback
+        } catch (_: Exception) {}
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -32,7 +75,7 @@ class SshServerService : Service() {
         val user = intent?.getStringExtra(EXTRA_USER) ?: "red"
         val pass = intent?.getStringExtra(EXTRA_PASS) ?: ""
 
-        // Stop existing engine if already running (handles restart case)
+        // Stop existing engine if already running
         engine?.stop()
 
         val eng = SshServerEngine()
@@ -57,10 +100,21 @@ class SshServerService : Service() {
         _isRunning = false
         engine?.stop()
         engine = null
-        wakeLock?.let {
-            if (it.isHeld) it.release()
-        }
+
+        wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+
+        wifiLock?.let { if (it.isHeld) it.release() }
+        wifiLock = null
+
+        networkCallback?.let {
+            try {
+                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                cm.unregisterNetworkCallback(it)
+            } catch (_: Exception) {}
+        }
+        networkCallback = null
+
         super.onDestroy()
     }
 
@@ -97,8 +151,29 @@ class SshServerService : Service() {
             .build()
     }
 
-    @Suppress("DEPRECATION")
     private fun getDeviceIp(): String {
+        // Try all network interfaces (works for both WiFi and mobile data)
+        try {
+            val allIps = mutableListOf<String>()
+            NetworkInterface.getNetworkInterfaces()?.toList()?.forEach { ni ->
+                if (ni.isUp && !ni.isLoopback) {
+                    ni.inetAddresses?.toList()?.forEach { addr ->
+                        if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                            allIps.add(addr.hostAddress ?: "")
+                        }
+                    }
+                }
+            }
+            // Prefer 192.168.x.x (WiFi) over others, but return any if available
+            val wifiIp = allIps.find { it.startsWith("192.168.") }
+            if (wifiIp != null) return wifiIp
+            val privateIp = allIps.find { it.startsWith("10.") || it.startsWith("172.") }
+            if (privateIp != null) return privateIp
+            if (allIps.isNotEmpty()) return allIps.first()
+        } catch (_: Exception) {}
+
+        // Fallback: WiFi manager
+        @Suppress("DEPRECATION")
         try {
             val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
             val ip = wm.connectionInfo.ipAddress
@@ -111,15 +186,6 @@ class SshServerService : Service() {
             }
         } catch (_: Exception) {}
 
-        try {
-            java.net.NetworkInterface.getNetworkInterfaces()?.toList()?.forEach { ni ->
-                ni.inetAddresses?.toList()?.forEach { addr ->
-                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
-                        return addr.hostAddress ?: "0.0.0.0"
-                    }
-                }
-            }
-        } catch (_: Exception) {}
         return "0.0.0.0"
     }
 
