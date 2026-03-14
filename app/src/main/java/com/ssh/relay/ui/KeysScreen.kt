@@ -48,11 +48,6 @@ fun KeysScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ===== Host Key Section =====
-        HostKeyCard(clipboardManager, context)
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
         // ===== Authorized Keys Section =====
         Text(S.authorizedKeys, style = MaterialTheme.typography.headlineMedium)
 
@@ -151,6 +146,11 @@ fun KeysScreen() {
                 }
             }
         }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // ===== Host Key Section =====
+        HostKeyCard(clipboardManager, context)
     }
 
     // Add Key Dialog
