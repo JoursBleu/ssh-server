@@ -21,10 +21,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 
-sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    data object Server : Screen("server", "Server", Icons.Default.CloudUpload)
-    data object Keys : Screen("keys", "Keys", Icons.Default.VpnKey)
-    data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+sealed class Screen(val route: String, val icon: ImageVector) {
+    data object Server : Screen("server", Icons.Default.CloudUpload)
+    data object Keys : Screen("keys", Icons.Default.VpnKey)
+    data object Settings : Screen("settings", Icons.Default.Settings)
+
+    val title: String get() = when (this) {
+        Server -> S.navServer
+        Keys -> S.navKeys
+        Settings -> S.navSettings
+    }
 }
 
 val screens = listOf(Screen.Server, Screen.Keys, Screen.Settings)
@@ -32,6 +38,9 @@ val screens = listOf(Screen.Server, Screen.Keys, Screen.Settings)
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+    // Read language to trigger recomposition
+    val langState = LocalLanguage.current
+    val currentLang = langState.value
 
     Scaffold(
         bottomBar = {

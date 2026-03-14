@@ -30,6 +30,10 @@ fun KeysScreen() {
     var authorizedKeys by remember { mutableStateOf(keysManager.getAuthorizedKeys()) }
     var showAddKeyDialog by remember { mutableStateOf(false) }
 
+    // Read language to trigger recomposition
+    val langState = LocalLanguage.current
+    val currentLang = langState.value
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -37,10 +41,10 @@ fun KeysScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Authorized Keys", style = MaterialTheme.typography.headlineMedium)
+        Text(S.authorizedKeys, style = MaterialTheme.typography.headlineMedium)
 
         Text(
-            "Manage SSH public keys for key-based authentication.\nUse ssh-copy-id or add keys manually.",
+            S.keysDescription,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -52,7 +56,7 @@ fun KeysScreen() {
         ) {
             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Add Public Key")
+            Text(S.addPublicKey)
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -65,16 +69,10 @@ fun KeysScreen() {
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "No authorized keys",
-                        style = MaterialTheme.typography.titleSmall
-                    )
+                    Text(S.noAuthorizedKeys, style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Only password authentication is enabled.\n\n" +
-                            "To add a key from your computer:\n" +
-                            "  ssh-copy-id -p 2222 user@phone-ip\n\n" +
-                            "Or paste a public key manually using the button above.",
+                        S.noKeysHint,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -82,7 +80,7 @@ fun KeysScreen() {
             }
         } else {
             Text(
-                "${authorizedKeys.size} key(s) configured",
+                S.keysConfigured(authorizedKeys.size),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -116,11 +114,11 @@ fun KeysScreen() {
                         // Copy key
                         IconButton(onClick = {
                             clipboardManager.setText(AnnotatedString(keyLine))
-                            Toast.makeText(context, "Key copied", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, S.keyCopied, Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(
                                 Icons.Default.ContentCopy,
-                                contentDescription = "Copy",
+                                contentDescription = S.copy,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -128,11 +126,11 @@ fun KeysScreen() {
                         IconButton(onClick = {
                             keysManager.removeKey(index)
                             authorizedKeys = keysManager.getAuthorizedKeys()
-                            Toast.makeText(context, "Key removed", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, S.keyRemoved, Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Remove",
+                                contentDescription = S.remove,
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -150,9 +148,9 @@ fun KeysScreen() {
                 if (keysManager.addKey(keyLine)) {
                     authorizedKeys = keysManager.getAuthorizedKeys()
                     showAddKeyDialog = false
-                    Toast.makeText(context, "Key added", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, S.keyAdded, Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(context, "Invalid key or already exists", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, S.invalidKey, Toast.LENGTH_SHORT).show()
                 }
             }
         )
@@ -174,17 +172,14 @@ private fun AddKeyDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Key, contentDescription = null) },
-        title = { Text("Add SSH Public Key") },
+        title = { Text(S.addKeyTitle) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "Paste an OpenSSH public key:\nssh-rsa AAAA... user@host\nssh-ed25519 AAAA... user@host",
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Text(S.addKeyHint, style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
                     value = keyText,
                     onValueChange = { keyText = it },
-                    label = { Text("Public Key") },
+                    label = { Text(S.publicKey) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 120.dp),
@@ -198,19 +193,19 @@ private fun AddKeyDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
                 ) {
                     Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Paste from clipboard")
+                    Text(S.pasteFromClipboard)
                 }
                 OutlinedTextField(
                     value = if (pastedComment.isNotEmpty()) pastedComment else comment,
                     onValueChange = { if (pastedComment.isEmpty()) comment = it },
-                    label = { Text("Comment") },
+                    label = { Text(S.comment) },
                     placeholder = { Text("e.g. user@laptop") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     enabled = pastedComment.isEmpty()
                 )
                 if (pastedComment.isNotEmpty()) {
-                    Text("Comment 已从公钥中自动提取", style = MaterialTheme.typography.bodySmall,
+                    Text(S.commentAutoExtracted, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -227,10 +222,10 @@ private fun AddKeyDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
                     onAdd(finalKey)
                 },
                 enabled = keyText.isNotBlank()
-            ) { Text("Add Key") }
+            ) { Text(S.addKey) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(S.cancel) }
         }
     )
 }

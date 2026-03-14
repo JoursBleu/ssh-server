@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
@@ -27,6 +28,8 @@ const val KEY_AUTO_START = "auto_start_on_boot"
 fun SettingsScreen() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE) }
+    val langState = LocalLanguage.current
+    val lang = langState.value  // read to trigger recomposition
 
     var homeDir by remember { mutableStateOf(prefs.getString(KEY_HOME_DIR, "/sdcard") ?: "/sdcard") }
     var shell by remember { mutableStateOf(prefs.getString(KEY_SHELL, "/system/bin/sh") ?: "/system/bin/sh") }
@@ -60,7 +63,7 @@ fun SettingsScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium)
+        Text(S.settings, style = MaterialTheme.typography.headlineMedium)
 
         // ====== Shell Settings ======
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -68,7 +71,7 @@ fun SettingsScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Terminal, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text("Shell", style = MaterialTheme.typography.titleMedium)
+                    Text(S.shell, style = MaterialTheme.typography.titleMedium)
                 }
 
                 OutlinedTextField(
@@ -77,11 +80,11 @@ fun SettingsScreen() {
                         homeDir = it
                         prefs.edit().putString(KEY_HOME_DIR, it).apply()
                     },
-                    label = { Text("Home 目录") },
+                    label = { Text(S.homeDir) },
                     leadingIcon = { Icon(Icons.Default.Folder, null, Modifier.size(20.dp)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    supportingText = { Text("SSH 登录后的初始工作目录") }
+                    supportingText = { Text(S.homeDirHint) }
                 )
 
                 // Shell selector
@@ -96,12 +99,12 @@ fun SettingsScreen() {
                             shell = it
                             prefs.edit().putString(KEY_SHELL, it).apply()
                         },
-                        label = { Text("默认 Shell") },
+                        label = { Text(S.defaultShell) },
                         leadingIcon = { Icon(Icons.Default.Terminal, null, Modifier.size(20.dp)) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(),
                         singleLine = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = shellExpanded) },
-                        supportingText = { Text("可选择或手动输入 Shell 路径") }
+                        supportingText = { Text(S.shellHint) }
                     )
                     ExposedDropdownMenu(
                         expanded = shellExpanded,
@@ -128,7 +131,7 @@ fun SettingsScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.RestartAlt, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text("启动", style = MaterialTheme.typography.titleMedium)
+                    Text(S.boot, style = MaterialTheme.typography.titleMedium)
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(
@@ -137,8 +140,8 @@ fun SettingsScreen() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("开机自启", style = MaterialTheme.typography.bodyLarge)
-                        Text("设备启动后自动开启 SSH 服务", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(S.autoStartOnBoot, style = MaterialTheme.typography.bodyLarge)
+                        Text(S.autoStartHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(
                         checked = autoStart,
@@ -151,20 +154,48 @@ fun SettingsScreen() {
             }
         }
 
+        // ====== Language ======
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Language, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text(S.language, style = MaterialTheme.typography.titleMedium)
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Language.entries.forEach { l ->
+                        FilterChip(
+                            selected = lang == l,
+                            onClick = {
+                                S.currentLang = l
+                                langState.value = l
+                                saveLanguage(context, l)
+                            },
+                            label = { Text(l.label) }
+                        )
+                    }
+                }
+            }
+        }
+
         // ====== About ======
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text("关于", style = MaterialTheme.typography.titleMedium)
+                    Text(S.about, style = MaterialTheme.typography.titleMedium)
                 }
                 Spacer(Modifier.height(8.dp))
-                SettingsInfoRow("应用名称", "SSH Server")
-                SettingsInfoRow("版本", "$versionName ($versionCode)")
-                SettingsInfoRow("包名", context.packageName)
-                SettingsInfoRow("SSH 引擎", "Apache MINA SSHD 2.17.1")
-                SettingsInfoRow("加密库", "BouncyCastle 1.80")
+                SettingsInfoRow(S.appName, "SSH Server")
+                SettingsInfoRow(S.version, "$versionName ($versionCode)")
+                SettingsInfoRow(S.packageName, context.packageName)
+                SettingsInfoRow(S.sshEngine, "Apache MINA SSHD 2.17.1")
+                SettingsInfoRow(S.cryptoLib, "BouncyCastle 1.80")
             }
         }
 

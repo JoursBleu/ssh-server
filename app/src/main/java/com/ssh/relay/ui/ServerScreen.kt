@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -25,13 +26,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.ssh.relay.engine.SessionInfo
 import com.ssh.relay.service.SshServerService
@@ -57,6 +62,8 @@ fun ServerScreen() {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    val langState = LocalLanguage.current
+    val lang = langState.value  // read to trigger recomposition
 
     // Background tip dialog
     var showBgTipDialog by remember { mutableStateOf(!prefs.getBoolean(KEY_HIDE_BG_TIP, false)) }
@@ -105,23 +112,20 @@ fun ServerScreen() {
         ActivityResultContracts.RequestPermission()
     ) { /* granted or denied */ }
 
+    // Language switch menu
+    var showLangMenu by remember { mutableStateOf(false) }
+
     // Background keep-alive tip dialog
     if (showBgTipDialog) {
         AlertDialog(
             onDismissRequest = { showBgTipDialog = false },
-            title = { Text("后台保活设置") },
+            title = { Text(S.bgTipTitle) },
             text = {
-                Text(
-                    "为保证 SSH 服务在后台稳定运行，请根据手机品牌手动设置：\n\n" +
-                    "华为/荣耀：设置 → 应用启动管理 → 手动管理 → 允许后台活动\n" +
-                    "小米/红米：设置 → 省电策略 → 无限制\n" +
-                    "OPPO/vivo：设置 → 电池 → 允许后台运行",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text(S.bgTipContent, style = MaterialTheme.typography.bodyMedium)
             },
             confirmButton = {
                 TextButton(onClick = { showBgTipDialog = false }) {
-                    Text("知道了")
+                    Text(S.bgTipOk)
                 }
             },
             dismissButton = {
@@ -129,7 +133,7 @@ fun ServerScreen() {
                     prefs.edit().putBoolean(KEY_HIDE_BG_TIP, true).apply()
                     showBgTipDialog = false
                 }) {
-                    Text("不再显示")
+                    Text(S.bgTipDontShow)
                 }
             }
         )
@@ -142,7 +146,37 @@ fun ServerScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("SSH Server", style = MaterialTheme.typography.headlineMedium)
+        // Header with language switch
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(S.sshServer, style = MaterialTheme.typography.headlineMedium)
+            Box {
+                IconButton(onClick = { showLangMenu = true }) {
+                    Icon(Icons.Default.Language, contentDescription = S.language)
+                }
+                DropdownMenu(expanded = showLangMenu, onDismissRequest = { showLangMenu = false }) {
+                    Language.entries.forEach { l ->
+                        DropdownMenuItem(
+                            text = { Text(l.label) },
+                            onClick = {
+                                S.currentLang = l
+                                langState.value = l
+                                saveLanguage(context, l)
+                                showLangMenu = false
+                            },
+                            leadingIcon = {
+                                if (l == lang) {
+                                    Icon(Icons.Default.Language, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
 
         // Error card
         if (serverState == ServerState.ERROR && lastError != null) {
@@ -174,12 +208,20 @@ fun ServerScreen() {
                     }
                     Column {
                         Text(
-                            when (serverState) {
-                                ServerState.STOPPED -> "○ Stopped"
-                                ServerState.STARTING -> "Starting..."
-                                ServerState.RUNNING -> "● Running"
-                                ServerState.STOPPING -> "Stopping..."
-                                ServerState.ERROR -> "✕ Error"
+                            buildAnnotatedString {
+                                when (serverState) {
+                                    ServerState.STOPPED -> {
+                                        withStyle(SpanStyle(color = Color.Gray)) { append("● ") }
+                                        append(if (S.currentLang == Language.ZH) "已停止" else "Stopped")
+                                    }
+                                    ServerState.STARTING -> append(S.starting)
+                                    ServerState.RUNNING -> {
+                                        withStyle(SpanStyle(color = Color(0xFF4CAF50))) { append("● ") }
+                                        append(if (S.currentLang == Language.ZH) "运行中" else "Running")
+                                    }
+                                    ServerState.STOPPING -> append(S.stopping)
+                                    ServerState.ERROR -> append(S.error)
+                                }
                             },
                             style = MaterialTheme.typography.titleMedium
                         )
@@ -203,7 +245,7 @@ fun ServerScreen() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Person, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                         Spacer(Modifier.width(6.dp))
-                        Text("Sessions: ${sessions.size}", style = MaterialTheme.typography.titleSmall)
+                        Text("${S.sessions}: ${sessions.size}", style = MaterialTheme.typography.titleSmall)
                     }
                     if (sessions.isNotEmpty()) {
                         Spacer(Modifier.height(4.dp))
@@ -219,7 +261,7 @@ fun ServerScreen() {
                         }
                     } else {
                         Spacer(Modifier.height(4.dp))
-                        Text("No active connections", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
+                        Text(S.noActiveConnections, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
                     }
                 }
             }
@@ -229,7 +271,7 @@ fun ServerScreen() {
         OutlinedTextField(
             value = port,
             onValueChange = { port = it.filter { c -> c.isDigit() } },
-            label = { Text("Port") },
+            label = { Text(S.port) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
             enabled = !isRunning && !isTransitioning
@@ -237,20 +279,20 @@ fun ServerScreen() {
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
-            label = { Text("Username") },
+            label = { Text(S.username) },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isRunning && !isTransitioning
         )
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Password") },
-            placeholder = { Text("Leave empty to disable password auth") },
+            label = { Text(S.password) },
+            placeholder = { Text(S.passwordHintEmpty) },
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { showPassword = !showPassword }) {
                     Icon(if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (showPassword) "Hide" else "Show")
+                        contentDescription = if (showPassword) S.hide else S.show)
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -258,7 +300,7 @@ fun ServerScreen() {
         )
 
         if (password.isEmpty() && !isRunning && !isTransitioning) {
-            Text("Password auth disabled. Use SSH keys.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(S.passwordAuthDisabled, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         // Host Key fingerprint (bottom)
@@ -268,7 +310,7 @@ fun ServerScreen() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Fingerprint, null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(8.dp))
-                        Text("Host Key 指纹", style = MaterialTheme.typography.titleSmall)
+                        Text(S.hostKeyFingerprint, style = MaterialTheme.typography.titleSmall)
                     }
                     Spacer(Modifier.height(4.dp))
                     Text("RSA SHA-256", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -278,7 +320,7 @@ fun ServerScreen() {
                             .fillMaxWidth()
                             .clickable {
                                 clipboardManager.setText(AnnotatedString(fingerprint))
-                                Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, S.fingerprintCopied, Toast.LENGTH_SHORT).show()
                             },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -289,9 +331,9 @@ fun ServerScreen() {
                         )
                         IconButton(onClick = {
                             clipboardManager.setText(AnnotatedString(fingerprint))
-                            Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, S.fingerprintCopied, Toast.LENGTH_SHORT).show()
                         }) {
-                            Icon(Icons.Default.ContentCopy, "Copy", Modifier.size(18.dp))
+                            Icon(Icons.Default.ContentCopy, S.copy, Modifier.size(18.dp))
                         }
                     }
                 }
@@ -336,10 +378,10 @@ fun ServerScreen() {
             Spacer(Modifier.width(8.dp))
             Text(
                 when (serverState) {
-                    ServerState.STARTING -> "Starting..."
-                    ServerState.STOPPING -> "Stopping..."
-                    ServerState.RUNNING -> "Stop Server"
-                    else -> "Start Server"
+                    ServerState.STARTING -> S.starting
+                    ServerState.STOPPING -> S.stopping
+                    ServerState.RUNNING -> S.stopServer
+                    else -> S.startServer
                 }
             )
         }
