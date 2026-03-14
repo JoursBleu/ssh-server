@@ -15,3 +15,6 @@
 /app/.cxx
 *.hprof
 *.log
+
+# Release keystore
+release.keystore
