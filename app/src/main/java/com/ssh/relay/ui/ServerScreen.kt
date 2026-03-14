@@ -8,14 +8,18 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -27,7 +31,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -35,6 +42,12 @@ import androidx.compose.ui.unit.dp
 import com.ssh.relay.engine.SessionInfo
 import com.ssh.relay.service.SshServerService
 import com.ssh.relay.service.SshServerService.ServerState
+import java.io.File
+import java.io.ObjectInputStream
+import java.security.KeyPair
+import java.security.MessageDigest
+import java.security.interfaces.ECPublicKey
+import java.security.interfaces.RSAPublicKey
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,6 +60,7 @@ private const val KEY_PASSWORD = "password"
 @Composable
 fun ServerScreen() {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
     // Poll server state every 500ms
@@ -85,6 +99,9 @@ fun ServerScreen() {
         }
     ) }
     var showPassword by remember { mutableStateOf(false) }
+
+    // Host key fingerprint
+    val fingerprint = remember { getHostKeyFingerprint(context) }
 
     val notifLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -186,6 +203,43 @@ fun ServerScreen() {
                         }.joinToString(" + ")
                         Text("Port ${SshServerService.currentPort} · User: ${SshServerService.currentUser} · Auth: $authMethods",
                             style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+
+        // Host Key fingerprint
+        if (fingerprint != null) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Fingerprint, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Host Key 指纹", style = MaterialTheme.typography.titleSmall)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text("RSA SHA-256", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(2.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(fingerprint))
+                                Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            fingerprint,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = {
+                            clipboardManager.setText(AnnotatedString(fingerprint))
+                            Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(Icons.Default.ContentCopy, "Copy", Modifier.size(18.dp))
+                        }
                     }
                 }
             }
@@ -326,4 +380,45 @@ private fun tryOpenBackgroundSettings(context: Context) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
     } catch (_: Exception) {}
+}
+
+private fun getHostKeyFingerprint(context: Context): String? {
+    return try {
+        val keyFile = File(context.filesDir, "hostkeys/host_rsa.ser")
+        if (!keyFile.exists()) return null
+        val keyPair = ObjectInputStream(keyFile.inputStream().buffered()).use { it.readObject() as KeyPair }
+        val pubKey = keyPair.public
+        val blob = when (pubKey) {
+            is RSAPublicKey -> {
+                val typeBytes = "ssh-rsa".toByteArray()
+                val eBytes = pubKey.publicExponent.toByteArray()
+                val nBytes = pubKey.modulus.toByteArray()
+                buildSshBlob(typeBytes, eBytes, nBytes)
+            }
+            is ECPublicKey -> {
+                val typeBytes = "ecdsa-sha2-nistp256".toByteArray()
+                val idBytes = "nistp256".toByteArray()
+                val point = pubKey.w
+                val fieldSize = (pubKey.params.curve.field as java.security.spec.ECFieldFp).p.bitLength()
+                val byteLen = (fieldSize + 7) / 8
+                val xBytes = point.affineX.toByteArray().let { if (it.size > byteLen) it.takeLast(byteLen).toByteArray() else it }
+                val yBytes = point.affineY.toByteArray().let { if (it.size > byteLen) it.takeLast(byteLen).toByteArray() else it }
+                val qBuf = ByteArray(1 + byteLen * 2)
+                qBuf[0] = 0x04
+                System.arraycopy(xBytes, 0, qBuf, 1 + byteLen - xBytes.size, xBytes.size)
+                System.arraycopy(yBytes, 0, qBuf, 1 + byteLen * 2 - yBytes.size, yBytes.size)
+                buildSshBlob(typeBytes, idBytes, qBuf)
+            }
+            else -> pubKey.encoded
+        }
+        val digest = MessageDigest.getInstance("SHA-256").digest(blob)
+        "SHA256:" + java.util.Base64.getEncoder().encodeToString(digest).trimEnd('=')
+    } catch (_: Exception) { null }
+}
+
+private fun buildSshBlob(vararg parts: ByteArray): ByteArray {
+    val total = parts.sumOf { 4 + it.size }
+    val buf = java.nio.ByteBuffer.allocate(total)
+    for (part in parts) { buf.putInt(part.size); buf.put(part) }
+    return buf.array()
 }

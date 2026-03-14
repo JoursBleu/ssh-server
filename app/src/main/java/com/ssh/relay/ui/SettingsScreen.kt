@@ -1,14 +1,10 @@
 package com.ssh.relay.ui
 
 import android.content.Context
-import android.widget.Toast
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.RestartAlt
@@ -17,19 +13,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.ssh.relay.SshServerApp
 import java.io.File
-import java.io.ObjectInputStream
-import java.security.KeyPair
-import java.security.MessageDigest
-import java.security.interfaces.ECPublicKey
-import java.security.interfaces.RSAPublicKey
-import java.util.Base64
 
 const val SETTINGS_PREFS = "ssh_server_prefs"
 const val KEY_HOME_DIR = "home_directory"
@@ -40,15 +26,11 @@ const val KEY_AUTO_START = "auto_start_on_boot"
 @Composable
 fun SettingsScreen() {
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
     val prefs = remember { context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE) }
 
     var homeDir by remember { mutableStateOf(prefs.getString(KEY_HOME_DIR, "/sdcard") ?: "/sdcard") }
     var shell by remember { mutableStateOf(prefs.getString(KEY_SHELL, "/system/bin/sh") ?: "/system/bin/sh") }
     var autoStart by remember { mutableStateOf(prefs.getBoolean(KEY_AUTO_START, false)) }
-
-    // Host key fingerprint
-    val fingerprint = remember { getHostKeyFingerprint(context) }
 
     // Available shells
     val availableShells = remember { detectAvailableShells() }
@@ -169,56 +151,6 @@ fun SettingsScreen() {
             }
         }
 
-        // ====== Security ======
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Fingerprint, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Host Key 指纹", style = MaterialTheme.typography.titleMedium)
-                }
-                Spacer(Modifier.height(8.dp))
-
-                if (fingerprint != null) {
-                    Text("RSA SHA-256", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                clipboardManager.setText(AnnotatedString(fingerprint))
-                                Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
-                            },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            fingerprint,
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = {
-                            clipboardManager.setText(AnnotatedString(fingerprint))
-                            Toast.makeText(context, "已复制指纹", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Icon(Icons.Default.ContentCopy, "Copy", Modifier.size(18.dp))
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "首次连接时 SSH 客户端会显示此指纹，请核对一致",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    Text(
-                        "尚未生成 Host Key，启动一次服务后即可查看",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
         // ====== About ======
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -253,64 +185,6 @@ private fun SettingsInfoRow(label: String, value: String) {
     }
 }
 
-/**
- * Compute SHA-256 fingerprint of the host RSA key in OpenSSH format.
- */
-private fun getHostKeyFingerprint(context: Context): String? {
-    return try {
-        val keyFile = File(context.filesDir, "hostkeys/host_rsa.ser")
-        if (!keyFile.exists()) return null
-
-        val keyPair = ObjectInputStream(keyFile.inputStream().buffered()).use {
-            it.readObject() as KeyPair
-        }
-        val pubKey = keyPair.public
-
-        // Encode public key in SSH wire format
-        val blob = when (pubKey) {
-            is RSAPublicKey -> {
-                val typeBytes = "ssh-rsa".toByteArray()
-                val eBytes = pubKey.publicExponent.toByteArray()
-                val nBytes = pubKey.modulus.toByteArray()
-                buildSshBlob(typeBytes, eBytes, nBytes)
-            }
-            is ECPublicKey -> {
-                val typeBytes = "ecdsa-sha2-nistp256".toByteArray()
-                val idBytes = "nistp256".toByteArray()
-                val point = pubKey.w
-                val fieldSize = (pubKey.params.curve.field as java.security.spec.ECFieldFp).p.bitLength()
-                val byteLen = (fieldSize + 7) / 8
-                val xBytes = point.affineX.toByteArray().let { if (it.size > byteLen) it.takeLast(byteLen).toByteArray() else it }
-                val yBytes = point.affineY.toByteArray().let { if (it.size > byteLen) it.takeLast(byteLen).toByteArray() else it }
-                val qBuf = ByteArray(1 + byteLen * 2)
-                qBuf[0] = 0x04 // uncompressed
-                System.arraycopy(xBytes, 0, qBuf, 1 + byteLen - xBytes.size, xBytes.size)
-                System.arraycopy(yBytes, 0, qBuf, 1 + byteLen * 2 - yBytes.size, yBytes.size)
-                buildSshBlob(typeBytes, idBytes, qBuf)
-            }
-            else -> pubKey.encoded
-        }
-
-        val digest = MessageDigest.getInstance("SHA-256").digest(blob)
-        "SHA256:" + Base64.getEncoder().encodeToString(digest).trimEnd('=')
-    } catch (e: Exception) {
-        null
-    }
-}
-
-private fun buildSshBlob(vararg parts: ByteArray): ByteArray {
-    val total = parts.sumOf { 4 + it.size }
-    val buf = java.nio.ByteBuffer.allocate(total)
-    for (part in parts) {
-        buf.putInt(part.size)
-        buf.put(part)
-    }
-    return buf.array()
-}
-
-/**
- * Detect available shell binaries on the device.
- */
 private fun detectAvailableShells(): List<String> {
     val candidates = listOf(
         "/system/bin/sh",
