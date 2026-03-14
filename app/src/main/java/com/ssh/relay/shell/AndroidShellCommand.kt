@@ -33,9 +33,28 @@ class AndroidShellCommand : Command {
     override fun setErrorStream(err: OutputStream) { sshErr = err }
     override fun setExitCallback(callback: ExitCallback) { exitCallback = callback }
 
+    companion object {
+        /**
+         * Get the default home/working directory for SSH sessions.
+         * Prefers /sdcard (shared storage) for file transfer convenience,
+         * falls back to app files dir.
+         */
+        fun getHomeDir(): String {
+            val sdcard = java.io.File("/sdcard")
+            if (sdcard.exists() && sdcard.canRead()) {
+                return sdcard.absolutePath
+            }
+            val storage = java.io.File("/storage/emulated/0")
+            if (storage.exists() && storage.canRead()) {
+                return storage.absolutePath
+            }
+            return com.ssh.relay.SshServerApp.instance.filesDir.absolutePath
+        }
+    }
+
     override fun start(channel: ChannelSession, env: Environment) {
         try {
-            val home = com.ssh.relay.SshServerApp.instance.filesDir.absolutePath
+            val home = getHomeDir()
             log.info("Starting shell, HOME={}", home)
 
             // Try PTY first, fall back to ProcessBuilder
@@ -65,7 +84,7 @@ class AndroidShellCommand : Command {
                 arrayOf(
                     "TERM=xterm-256color",
                     "HOME=$home",
-                    "TMPDIR=$home/tmp",
+                    "TMPDIR=$home",
                     "PATH=/sbin:/system/sbin:/system/bin:/system/xbin:/vendor/bin:/product/bin"
                 )
             )
@@ -84,10 +103,15 @@ class AndroidShellCommand : Command {
             val cols = env.env["COLUMNS"]?.toIntOrNull() ?: 80
             PtyCompat.setWindowSize(masterFd, rows, cols)
 
-            // Create streams via ParcelFileDescriptor (Android's proper API)
+            // Create streams via ParcelFileDescriptor
             val pfd = android.os.ParcelFileDescriptor.adoptFd(masterFd)
             val ptyIn = android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd)
             val ptyOut = java.io.FileOutputStream(pfd.fileDescriptor)
+
+            // Send initial cd command to set working directory
+            val cdCmd = "cd '$home' 2>/dev/null\n"
+            ptyOut.write(cdCmd.toByteArray())
+            ptyOut.flush()
 
             // SSH -> PTY
             writerThread = Thread({
@@ -130,22 +154,22 @@ class AndroidShellCommand : Command {
     }
 
     private fun startWithProcessBuilder(home: String) {
-        val tmpDir = java.io.File(home, "tmp")
-        tmpDir.mkdirs()
+        val homeDir = java.io.File(home)
+        homeDir.mkdirs()
 
         val pb = ProcessBuilder("/system/bin/sh", "-")
             .redirectErrorStream(false)
         pb.environment().apply {
             put("HOME", home)
-            put("TMPDIR", tmpDir.absolutePath)
+            put("TMPDIR", home)
             put("TERM", "dumb")
             put("PATH", "/sbin:/system/sbin:/system/bin:/system/xbin:/vendor/bin:/product/bin")
         }
-        pb.directory(java.io.File(home))
+        pb.directory(homeDir)
 
         val proc = pb.start()
         process = proc
-        log.info("ProcessBuilder shell started")
+        log.info("ProcessBuilder shell started in {}", home)
 
         // SSH -> Process stdin
         writerThread = Thread({
