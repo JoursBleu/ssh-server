@@ -10,7 +10,7 @@ import java.io.InputStream
 import java.io.OutputStream
 
 /**
- * Executes a single command via /system/bin/sh -c "command".
+ * Executes a single command via shell -c "command".
  * Used by ssh-copy-id, scp, and any other exec-based SSH operations.
  */
 class AndroidExecCommand(private val command: String) : Command {
@@ -32,22 +32,24 @@ class AndroidExecCommand(private val command: String) : Command {
     override fun start(channel: ChannelSession, env: Environment) {
         Thread({
             try {
-                val home = com.ssh.relay.SshServerApp.instance.filesDir.absolutePath
+                val home = AndroidShellCommand.getHomeDir()
+                val shell = AndroidShellCommand.getShell()
                 val tmpDir = File(home, "tmp")
                 tmpDir.mkdirs()
 
                 // Ensure .ssh directory exists for ssh-copy-id
-                File(home, ".ssh").mkdirs()
+                val appHome = com.ssh.relay.SshServerApp.instance.filesDir.absolutePath
+                File(appHome, ".ssh").mkdirs()
 
-                log.info("Executing: sh -c '{}' (HOME={})", command, home)
+                log.info("Executing: {} -c '{}' (HOME={})", shell, command, home)
 
-                val pb = ProcessBuilder("/system/bin/sh", "-c", command)
+                val pb = ProcessBuilder(shell, "-c", command)
                     .redirectErrorStream(false)
                 pb.environment().apply {
                     put("HOME", home)
                     put("TMPDIR", tmpDir.absolutePath)
                     put("PATH", "/sbin:/system/sbin:/system/bin:/system/xbin:/vendor/bin:/product/bin")
-                    put("SHELL", "/system/bin/sh")
+                    put("SHELL", shell)
                     put("USER", "shell")
                 }
                 pb.directory(File(home))

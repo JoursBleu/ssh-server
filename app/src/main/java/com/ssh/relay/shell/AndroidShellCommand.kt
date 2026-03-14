@@ -1,5 +1,7 @@
 package com.ssh.relay.shell
 
+import android.content.Context
+import com.ssh.relay.SshServerApp
 import org.apache.sshd.server.Environment
 import org.apache.sshd.server.ExitCallback
 import org.apache.sshd.server.channel.ChannelSession
@@ -34,37 +36,54 @@ class AndroidShellCommand : Command {
     override fun setExitCallback(callback: ExitCallback) { exitCallback = callback }
 
     companion object {
+        private const val PREFS_NAME = "ssh_server_prefs"
+        private const val KEY_HOME_DIR = "home_directory"
+        private const val KEY_SHELL = "default_shell"
+
         /**
-         * Get the default home/working directory for SSH sessions.
-         * Prefers /sdcard (shared storage) for file transfer convenience,
-         * falls back to app files dir.
+         * Get home directory from settings, falling back to /sdcard or app files dir.
          */
         fun getHomeDir(): String {
+            val prefs = SshServerApp.instance.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val configured = prefs.getString(KEY_HOME_DIR, null)
+            if (!configured.isNullOrBlank()) {
+                val dir = java.io.File(configured)
+                if (dir.exists() && dir.canRead()) return dir.absolutePath
+            }
             val sdcard = java.io.File("/sdcard")
-            if (sdcard.exists() && sdcard.canRead()) {
-                return sdcard.absolutePath
-            }
+            if (sdcard.exists() && sdcard.canRead()) return sdcard.absolutePath
             val storage = java.io.File("/storage/emulated/0")
-            if (storage.exists() && storage.canRead()) {
-                return storage.absolutePath
+            if (storage.exists() && storage.canRead()) return storage.absolutePath
+            return SshServerApp.instance.filesDir.absolutePath
+        }
+
+        /**
+         * Get shell path from settings, falling back to /system/bin/sh.
+         */
+        fun getShell(): String {
+            val prefs = SshServerApp.instance.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val configured = prefs.getString(KEY_SHELL, null)
+            if (!configured.isNullOrBlank() && java.io.File(configured).exists()) {
+                return configured
             }
-            return com.ssh.relay.SshServerApp.instance.filesDir.absolutePath
+            return "/system/bin/sh"
         }
     }
 
     override fun start(channel: ChannelSession, env: Environment) {
         try {
             val home = getHomeDir()
-            log.info("Starting shell, HOME={}", home)
+            val shell = getShell()
+            log.info("Starting shell={}, HOME={}", shell, home)
 
             // Try PTY first, fall back to ProcessBuilder
-            if (tryStartWithPty(env, home)) {
+            if (tryStartWithPty(env, home, shell)) {
                 log.info("Shell started with PTY")
                 return
             }
 
             log.info("PTY unavailable, using ProcessBuilder")
-            startWithProcessBuilder(home)
+            startWithProcessBuilder(home, shell)
 
         } catch (e: Exception) {
             log.error("Failed to start shell", e)
@@ -76,15 +95,16 @@ class AndroidShellCommand : Command {
         }
     }
 
-    private fun tryStartWithPty(env: Environment, home: String): Boolean {
+    private fun tryStartWithPty(env: Environment, home: String, shell: String): Boolean {
         return try {
             val result = PtyCompat.createSubprocess(
-                "/system/bin/sh",
+                shell,
                 arrayOf("-"),
                 arrayOf(
                     "TERM=xterm-256color",
                     "HOME=$home",
                     "TMPDIR=$home",
+                    "SHELL=$shell",
                     "PATH=/sbin:/system/sbin:/system/bin:/system/xbin:/vendor/bin:/product/bin"
                 )
             )
@@ -153,16 +173,17 @@ class AndroidShellCommand : Command {
         }
     }
 
-    private fun startWithProcessBuilder(home: String) {
+    private fun startWithProcessBuilder(home: String, shell: String) {
         val homeDir = java.io.File(home)
         homeDir.mkdirs()
 
-        val pb = ProcessBuilder("/system/bin/sh", "-")
+        val pb = ProcessBuilder(shell, "-")
             .redirectErrorStream(false)
         pb.environment().apply {
             put("HOME", home)
             put("TMPDIR", home)
             put("TERM", "dumb")
+            put("SHELL", shell)
             put("PATH", "/sbin:/system/sbin:/system/bin:/system/xbin:/vendor/bin:/product/bin")
         }
         pb.directory(homeDir)
