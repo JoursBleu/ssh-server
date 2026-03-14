@@ -46,10 +46,19 @@ class SshServerEngine {
     fun removeListener(l: Listener) = listeners.remove(l)
 
     fun start() {
-        if (sshd != null) return
+        // Stop existing server first if any
+        if (sshd != null) {
+            log.info("Stopping existing server before restart")
+            stop()
+            // Small delay to allow port release
+            try { Thread.sleep(500) } catch (_: InterruptedException) {}
+        }
+
         try {
             val server = SshServer.setUpDefaultServer().apply {
                 this.port = this@SshServerEngine.port
+
+                // Allow port reuse so restart works immediately
 
                 // Host key - persisted to disk
                 keyPairProvider = loadOrGenerateHostKey()
@@ -114,6 +123,7 @@ class SshServerEngine {
             listeners.forEach { it.onServerStarted(port) }
         } catch (e: Exception) {
             log.error("Failed to start SSH server", e)
+            sshd = null
             listeners.forEach { it.onServerError(e) }
         }
     }
@@ -121,11 +131,12 @@ class SshServerEngine {
     fun stop() {
         try {
             sshd?.stop(true)
+        } catch (e: Exception) {
+            log.error("Error stopping SSH server", e)
+        } finally {
             sshd = null
             log.info("SSH server stopped")
             listeners.forEach { it.onServerStopped() }
-        } catch (e: Exception) {
-            log.error("Error stopping SSH server", e)
         }
     }
 

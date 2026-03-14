@@ -15,13 +15,12 @@ import com.ssh.relay.ui.MainActivity
 
 class SshServerService : Service() {
 
-    private val engine = SshServerEngine()
+    private var engine: SshServerEngine? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        // Acquire partial wake lock to keep CPU running
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SshServer::WakeLock").apply {
             acquire()
@@ -33,15 +32,19 @@ class SshServerService : Service() {
         val user = intent?.getStringExtra(EXTRA_USER) ?: "red"
         val pass = intent?.getStringExtra(EXTRA_PASS) ?: ""
 
-        engine.port = port
-        engine.username = user
-        engine.password = pass
-        engine.start()
+        // Stop existing engine if already running (handles restart case)
+        engine?.stop()
+
+        val eng = SshServerEngine()
+        eng.port = port
+        eng.username = user
+        eng.password = pass
+        eng.start()
+        engine = eng
 
         val ip = getDeviceIp()
         startForeground(NOTIFICATION_ID, buildNotification(ip, port))
 
-        // Track running state
         _isRunning = true
         _currentPort = port
         _currentUser = user
@@ -52,7 +55,8 @@ class SshServerService : Service() {
 
     override fun onDestroy() {
         _isRunning = false
-        engine.stop()
+        engine?.stop()
+        engine = null
         wakeLock?.let {
             if (it.isHeld) it.release()
         }
@@ -63,7 +67,6 @@ class SshServerService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Service keeps running even when app is swiped from recents
         super.onTaskRemoved(rootIntent)
     }
 
@@ -127,7 +130,6 @@ class SshServerService : Service() {
         const val EXTRA_USER = "user"
         const val EXTRA_PASS = "pass"
 
-        // Static state so UI can check if service is running
         @Volatile var _isRunning = false
             private set
         @Volatile var _currentPort = 2222
