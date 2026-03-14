@@ -111,6 +111,17 @@ object S {
     val sshEngine get() = if (isZh) "SSH 引擎" else "SSH Engine"
     val cryptoLib get() = if (isZh) "加密库" else "Crypto Library"
 
+    // Host Key
+    val hostKey get() = if (isZh) "服务器密钥" else "Host Key"
+    val hostPrivateKey get() = if (isZh) "私钥 (PEM)" else "Private Key (PEM)"
+    val hostPublicKey get() = if (isZh) "公钥 (OpenSSH)" else "Public Key (OpenSSH)"
+    val hostKeyNotGenerated get() = if (isZh) "服务器尚未启动过，密钥未生成。" else "Server has not started yet. Key not generated."
+    val hostKeyDescription get() = if (isZh) "服务器 RSA 主机密钥，首次启动时自动生成。" else "Server RSA host key, auto-generated on first start."
+    val privateKeyCopied get() = if (isZh) "私钥已复制" else "Private key copied"
+    val publicKeyCopied get() = if (isZh) "公钥已复制" else "Public key copied"
+    val showPrivateKey get() = if (isZh) "显示私钥" else "Show Private Key"
+    val hidePrivateKey get() = if (isZh) "隐藏私钥" else "Hide Private Key"
+
     // Navigation
     val navServer get() = if (isZh) "服务" else "Server"
     val navKeys get() = if (isZh) "密钥" else "Keys"

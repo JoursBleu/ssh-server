@@ -1,6 +1,7 @@
 package com.ssh.relay.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,6 +11,9 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,9 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ssh.relay.engine.AuthorizedKeysManager
+import com.ssh.relay.engine.SshServerEngine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +48,12 @@ fun KeysScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // ===== Host Key Section =====
+        HostKeyCard(clipboardManager, context)
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // ===== Authorized Keys Section =====
         Text(S.authorizedKeys, style = MaterialTheme.typography.headlineMedium)
 
         Text(
@@ -154,6 +167,117 @@ fun KeysScreen() {
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun HostKeyCard(
+    clipboardManager: androidx.compose.ui.platform.ClipboardManager,
+    context: android.content.Context
+) {
+    val privateKeyPem = remember { SshServerEngine.getHostPrivateKeyPem() }
+    val publicKeyOpenSSH = remember { SshServerEngine.getHostPublicKeyOpenSSH() }
+    var showPrivateKey by remember { mutableStateOf(false) }
+
+    Text(S.hostKey, style = MaterialTheme.typography.headlineMedium)
+    Text(
+        S.hostKeyDescription,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    if (privateKeyPem == null || publicKeyOpenSSH == null) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(12.dp))
+                Text(S.hostKeyNotGenerated, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    } else {
+        // Public key card
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(S.hostPublicKey, style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                    IconButton(onClick = {
+                        clipboardManager.setText(AnnotatedString(publicKeyOpenSSH))
+                        Toast.makeText(context, S.publicKeyCopied, Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = S.copy,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Text(
+                    publicKeyOpenSSH,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // Private key card
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(S.hostPrivateKey, style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                    IconButton(onClick = {
+                        showPrivateKey = !showPrivateKey
+                    }) {
+                        Icon(
+                            if (showPrivateKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (showPrivateKey) S.hidePrivateKey else S.showPrivateKey,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = {
+                        clipboardManager.setText(AnnotatedString(privateKeyPem))
+                        Toast.makeText(context, S.privateKeyCopied, Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = S.copy,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (showPrivateKey) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            privateKeyPem,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Text(
+                        "••••••••••••••••••••",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }
 

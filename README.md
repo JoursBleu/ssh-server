@@ -5,7 +5,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.1.0-purple.svg)](https://kotlinlang.org)
 [![Release](https://img.shields.io/github/v/release/JoursBleu/ssh-server?include_prereleases)](https://github.com/JoursBleu/ssh-server/releases)
 
-基于 Apache MINA SSHD 的 Android SSH 服务器应用。
+Android SSH 服务器应用，把手机变成移动的服务器/跳板机。
 
 [中文](#中文) | [English](#english) | [Contributing](CONTRIBUTING.md) | [Changelog](CHANGELOG.md)
 ---

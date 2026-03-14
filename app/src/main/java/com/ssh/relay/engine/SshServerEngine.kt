@@ -21,6 +21,8 @@ import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.security.KeyPair
 import java.security.KeyPairGenerator
+import java.security.interfaces.RSAPublicKey
+import java.util.Base64
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CopyOnWriteArraySet
@@ -258,5 +260,48 @@ class SshServerEngine {
             log.warn("Failed to save host key", e)
         }
         return keyPair
+    }
+
+    companion object {
+        /**
+         * Load the host key pair from storage. Returns null if not yet generated.
+         */
+        fun loadHostKeyPair(): KeyPair? {
+            val keyFile = File(SshServerApp.instance.filesDir.resolve("hostkeys"), "host_rsa.ser")
+            if (!keyFile.exists()) return null
+            return try {
+                ObjectInputStream(keyFile.inputStream().buffered()).use { it.readObject() as KeyPair }
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        /**
+         * Get host private key in PEM (PKCS#8) format.
+         */
+        fun getHostPrivateKeyPem(): String? {
+            val kp = loadHostKeyPair() ?: return null
+            val encoded = kp.private.encoded ?: return null
+            val b64 = Base64.getMimeEncoder(64, "\n".toByteArray()).encodeToString(encoded)
+            return "-----BEGIN PRIVATE KEY-----\n$b64\n-----END PRIVATE KEY-----"
+        }
+
+        /**
+         * Get host public key in OpenSSH format (ssh-rsa AAAA... host).
+         */
+        fun getHostPublicKeyOpenSSH(): String? {
+            val kp = loadHostKeyPair() ?: return null
+            val pub = kp.public as? RSAPublicKey ?: return null
+            val e = pub.publicExponent.toByteArray()
+            val n = pub.modulus.toByteArray()
+            val type = "ssh-rsa".toByteArray()
+            val totalSize = (4 + type.size) + (4 + e.size) + (4 + n.size)
+            val buf = java.nio.ByteBuffer.allocate(totalSize)
+            buf.putInt(type.size); buf.put(type)
+            buf.putInt(e.size); buf.put(e)
+            buf.putInt(n.size); buf.put(n)
+            val b64 = Base64.getEncoder().encodeToString(buf.array())
+            return "ssh-rsa $b64 host"
+        }
     }
 }
