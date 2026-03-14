@@ -162,7 +162,14 @@ fun KeysScreen() {
 @Composable
 private fun AddKeyDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
     var keyText by remember { mutableStateOf("") }
+    var comment by remember { mutableStateOf("") }
     val clipboardManager = LocalClipboardManager.current
+
+    // Auto-extract comment from pasted key
+    val pastedComment = remember(keyText) {
+        val parts = keyText.trim().split(" ", limit = 3)
+        if (parts.size >= 3) parts[2] else ""
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -193,11 +200,32 @@ private fun AddKeyDialog(onDismiss: () -> Unit, onAdd: (String) -> Unit) {
                     Spacer(Modifier.width(4.dp))
                     Text("Paste from clipboard")
                 }
+                OutlinedTextField(
+                    value = if (pastedComment.isNotEmpty()) pastedComment else comment,
+                    onValueChange = { if (pastedComment.isEmpty()) comment = it },
+                    label = { Text("Comment") },
+                    placeholder = { Text("e.g. user@laptop") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = pastedComment.isEmpty()
+                )
+                if (pastedComment.isNotEmpty()) {
+                    Text("Comment 已从公钥中自动提取", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onAdd(keyText) },
+                onClick = {
+                    val finalKey = if (pastedComment.isNotEmpty()) {
+                        keyText.trim()
+                    } else {
+                        val base = keyText.trim().split(" ", limit = 3).take(2).joinToString(" ")
+                        if (comment.isNotBlank()) "$base $comment" else base
+                    }
+                    onAdd(finalKey)
+                },
                 enabled = keyText.isNotBlank()
             ) { Text("Add Key") }
         },
