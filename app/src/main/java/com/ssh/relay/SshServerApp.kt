@@ -7,7 +7,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.nio.file.Paths
 import java.security.Security
 
-class SshRelayApp : Application() {
+class SshServerApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
@@ -32,7 +32,7 @@ class SshRelayApp : Application() {
     }
 
     companion object {
-        lateinit var instance: SshRelayApp
+        lateinit var instance: SshServerApp
             private set
     }
 }

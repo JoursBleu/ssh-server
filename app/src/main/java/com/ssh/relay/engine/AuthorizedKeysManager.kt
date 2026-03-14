@@ -1,6 +1,6 @@
 package com.ssh.relay.engine
 
-import com.ssh.relay.SshRelayApp
+import com.ssh.relay.SshServerApp
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.security.PublicKey
@@ -20,7 +20,7 @@ class AuthorizedKeysManager {
 
     private val sshDir: File
         get() {
-            val dir = File(SshRelayApp.instance.filesDir, ".ssh")
+            val dir = File(SshServerApp.instance.filesDir, ".ssh")
             dir.mkdirs()
             return dir
         }

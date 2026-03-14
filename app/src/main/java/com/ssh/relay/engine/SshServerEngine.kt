@@ -1,6 +1,6 @@
 package com.ssh.relay.engine
 
-import com.ssh.relay.SshRelayApp
+import com.ssh.relay.SshServerApp
 import com.ssh.relay.shell.AndroidShellFactory
 import org.apache.sshd.common.forward.PortForwardingEventListener
 import org.apache.sshd.common.keyprovider.KeyPairProvider
@@ -124,7 +124,7 @@ class SshServerEngine {
     }
 
     private fun loadOrGenerateHostKey(): KeyPairProvider {
-        val keyDir = SshRelayApp.instance.filesDir.resolve("hostkeys")
+        val keyDir = SshServerApp.instance.filesDir.resolve("hostkeys")
         keyDir.mkdirs()
         val keyFile = File(keyDir, "host_rsa.ser")
 

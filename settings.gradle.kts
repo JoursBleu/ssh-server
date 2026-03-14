@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SshRelay"
+rootProject.name = "SshServer"
 include(":app")

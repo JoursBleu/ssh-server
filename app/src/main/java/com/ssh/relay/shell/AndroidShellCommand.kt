@@ -35,7 +35,7 @@ class AndroidShellCommand : Command {
 
     override fun start(channel: ChannelSession, env: Environment) {
         try {
-            val home = com.ssh.relay.SshRelayApp.instance.filesDir.absolutePath
+            val home = com.ssh.relay.SshServerApp.instance.filesDir.absolutePath
             log.info("Starting shell, HOME={}", home)
 
             // Try PTY first, fall back to ProcessBuilder
