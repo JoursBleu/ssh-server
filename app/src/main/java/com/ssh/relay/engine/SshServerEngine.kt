@@ -2,6 +2,7 @@ package com.ssh.relay.engine
 
 import com.ssh.relay.SshServerApp
 import com.ssh.relay.shell.AndroidShellFactory
+import com.ssh.relay.shell.AndroidCommandFactory
 import org.apache.sshd.common.forward.PortForwardingEventListener
 import org.apache.sshd.common.keyprovider.KeyPairProvider
 import org.apache.sshd.common.session.Session
@@ -72,6 +73,9 @@ class SshServerEngine {
 
                 // Shell
                 shellFactory = AndroidShellFactory()
+
+                // Exec commands (ssh-copy-id, scp, etc.)
+                commandFactory = AndroidCommandFactory()
 
                 // SFTP
                 subsystemFactories = listOf(SftpSubsystemFactory())
