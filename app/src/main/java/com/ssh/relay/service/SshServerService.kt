@@ -9,17 +9,23 @@ import android.content.Context
 import android.content.Intent
 import android.net.wifi.WifiManager
 import android.os.IBinder
-import com.ssh.relay.R
+import android.os.PowerManager
 import com.ssh.relay.engine.SshServerEngine
 import com.ssh.relay.ui.MainActivity
 
 class SshServerService : Service() {
 
     private val engine = SshServerEngine()
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        // Acquire partial wake lock to keep CPU running
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SshServer::WakeLock").apply {
+            acquire()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -35,15 +41,31 @@ class SshServerService : Service() {
         val ip = getDeviceIp()
         startForeground(NOTIFICATION_ID, buildNotification(ip, port))
 
+        // Track running state
+        _isRunning = true
+        _currentPort = port
+        _currentUser = user
+        _currentPass = pass
+
         return START_STICKY
     }
 
     override fun onDestroy() {
+        _isRunning = false
         engine.stop()
+        wakeLock?.let {
+            if (it.isHeld) it.release()
+        }
+        wakeLock = null
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Service keeps running even when app is swiped from recents
+        super.onTaskRemoved(rootIntent)
+    }
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
@@ -72,6 +94,7 @@ class SshServerService : Service() {
             .build()
     }
 
+    @Suppress("DEPRECATION")
     private fun getDeviceIp(): String {
         try {
             val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -85,7 +108,6 @@ class SshServerService : Service() {
             }
         } catch (_: Exception) {}
 
-        // Fallback: enumerate network interfaces
         try {
             java.net.NetworkInterface.getNetworkInterfaces()?.toList()?.forEach { ni ->
                 ni.inetAddresses?.toList()?.forEach { addr ->
@@ -104,6 +126,21 @@ class SshServerService : Service() {
         const val EXTRA_PORT = "port"
         const val EXTRA_USER = "user"
         const val EXTRA_PASS = "pass"
+
+        // Static state so UI can check if service is running
+        @Volatile var _isRunning = false
+            private set
+        @Volatile var _currentPort = 2222
+            private set
+        @Volatile var _currentUser = "red"
+            private set
+        @Volatile var _currentPass = ""
+            private set
+
+        val isRunning get() = _isRunning
+        val currentPort get() = _currentPort
+        val currentUser get() = _currentUser
+        val currentPass get() = _currentPass
 
         fun start(context: Context, port: Int = 2222, user: String = "red", pass: String = "") {
             val intent = Intent(context, SshServerService::class.java).apply {

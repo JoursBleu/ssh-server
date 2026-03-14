@@ -28,12 +28,28 @@ import com.ssh.relay.service.SshServerService
 @Composable
 fun ServerScreen() {
     val context = LocalContext.current
-    var isRunning by remember { mutableStateOf(false) }
-    var port by remember { mutableStateOf("2222") }
-    var username by remember { mutableStateOf("red") }
-    var password by remember { mutableStateOf("") }
+
+    // Restore state from running service
+    var isRunning by remember { mutableStateOf(SshServerService.isRunning) }
+    var port by remember { mutableStateOf(
+        if (SshServerService.isRunning) SshServerService.currentPort.toString() else "2222"
+    ) }
+    var username by remember { mutableStateOf(
+        if (SshServerService.isRunning) SshServerService.currentUser else "red"
+    ) }
+    var password by remember { mutableStateOf(
+        if (SshServerService.isRunning) SshServerService.currentPass else ""
+    ) }
     var showPassword by remember { mutableStateOf(false) }
-    var statusText by remember { mutableStateOf("Server stopped") }
+    var statusText by remember { mutableStateOf(
+        if (SshServerService.isRunning) {
+            val authMethods = buildList {
+                if (SshServerService.currentPass.isNotEmpty()) add("password")
+                add("publickey")
+            }.joinToString(" + ")
+            "Listening on port ${SshServerService.currentPort}\nUser: ${SshServerService.currentUser}\nAuth: $authMethods"
+        } else "Server stopped"
+    ) }
 
     val notifLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -102,7 +118,7 @@ fun ServerScreen() {
             enabled = !isRunning
         )
 
-        if (password.isEmpty()) {
+        if (password.isEmpty() && !isRunning) {
             Text(
                 "Password auth disabled. Use SSH keys to connect.",
                 style = MaterialTheme.typography.bodySmall,
