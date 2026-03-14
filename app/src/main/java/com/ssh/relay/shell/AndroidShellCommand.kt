@@ -51,8 +51,8 @@ class AndroidShellCommand : Command {
             log.info("Shell started: pid={}, masterFd={}", pid, masterFd)
 
             // Set initial window size
-            val rows = env.envMap["LINES"]?.toIntOrNull() ?: 24
-            val cols = env.envMap["COLUMNS"]?.toIntOrNull() ?: 80
+            val rows = env.env["LINES"]?.toIntOrNull() ?: 24
+            val cols = env.env["COLUMNS"]?.toIntOrNull() ?: 80
             PtyCompat.setWindowSize(masterFd, rows, cols)
 
             // Create streams from the master PTY fd
