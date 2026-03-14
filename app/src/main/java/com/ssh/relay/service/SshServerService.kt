@@ -83,6 +83,22 @@ class SshServerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Handle stop action
+        if (intent?.action == ACTION_STOP) {
+            _serverState = ServerState.STOPPING
+            executor.submit {
+                try {
+                    engine?.stop()
+                } catch (_: Exception) {}
+                engine = null
+                _isRunning = false
+                _activeSessions = emptySet()
+                _serverState = ServerState.STOPPED
+                stopSelf()
+            }
+            return START_NOT_STICKY
+        }
+
         val port = intent?.getIntExtra(EXTRA_PORT, 2222) ?: 2222
         val user = intent?.getStringExtra(EXTRA_USER) ?: "red"
         val pass = intent?.getStringExtra(EXTRA_PASS) ?: ""
@@ -252,6 +268,7 @@ class SshServerService : Service() {
     companion object {
         private const val CHANNEL_ID = "ssh_server_channel"
         private const val NOTIFICATION_ID = 1
+        const val ACTION_STOP = "com.ssh.relay.STOP"
         const val EXTRA_PORT = "port"
         const val EXTRA_USER = "user"
         const val EXTRA_PASS = "pass"
@@ -284,7 +301,10 @@ class SshServerService : Service() {
 
         fun stop(context: Context) {
             _serverState = ServerState.STOPPING
-            context.stopService(Intent(context, SshServerService::class.java))
+            // Send stop action to service so it can stop engine async before destroying
+            context.startService(Intent(context, SshServerService::class.java).apply {
+                action = ACTION_STOP
+            })
         }
     }
 }
