@@ -6,11 +6,13 @@ import com.ssh.relay.shell.AndroidCommandFactory
 import org.apache.sshd.common.forward.PortForwardingEventListener
 import org.apache.sshd.common.keyprovider.KeyPairProvider
 import org.apache.sshd.common.session.Session
+import org.apache.sshd.common.session.SessionListener
 import org.apache.sshd.common.util.net.SshdSocketAddress
 import org.apache.sshd.server.SshServer
 import org.apache.sshd.server.auth.password.PasswordAuthenticator
 import org.apache.sshd.server.auth.pubkey.PublickeyAuthenticator
 import org.apache.sshd.server.forward.AcceptAllForwardingFilter
+import org.apache.sshd.server.session.ServerSession
 import org.apache.sshd.sftp.server.SftpSubsystemFactory
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -19,6 +21,13 @@ import java.io.ObjectOutputStream
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CopyOnWriteArraySet
+
+data class SessionInfo(
+    val remoteAddress: String,
+    val username: String,
+    val connectedAt: Long = System.currentTimeMillis()
+)
 
 class SshServerEngine {
 
@@ -33,6 +42,13 @@ class SshServerEngine {
 
     val isRunning: Boolean get() = sshd?.isStarted == true
 
+    // Active session tracking
+    private val _activeSessions = CopyOnWriteArraySet<SessionInfo>()
+    val activeSessions: Set<SessionInfo> get() = _activeSessions
+
+    // Callback for session changes (UI can observe)
+    var onSessionsChanged: ((Set<SessionInfo>) -> Unit)? = null
+
     interface Listener {
         fun onServerStarted(port: Int)
         fun onServerStopped()
@@ -46,11 +62,9 @@ class SshServerEngine {
     fun removeListener(l: Listener) = listeners.remove(l)
 
     fun start() {
-        // Stop existing server first if any
         if (sshd != null) {
             log.info("Stopping existing server before restart")
             stop()
-            // Small delay to allow port release
             try { Thread.sleep(500) } catch (_: InterruptedException) {}
         }
 
@@ -58,12 +72,8 @@ class SshServerEngine {
             val server = SshServer.setUpDefaultServer().apply {
                 this.port = this@SshServerEngine.port
 
-                // Allow port reuse so restart works immediately
-
-                // Host key - persisted to disk
                 keyPairProvider = loadOrGenerateHostKey()
 
-                // Password auth (disabled when password is empty)
                 passwordAuthenticator = PasswordAuthenticator { inputUser, inputPass, _ ->
                     val pwd = this@SshServerEngine.password
                     pwd.isNotEmpty() &&
@@ -71,7 +81,6 @@ class SshServerEngine {
                             inputPass == pwd
                 }
 
-                // Public key auth - check against authorized_keys
                 publickeyAuthenticator = PublickeyAuthenticator { inputUser, key, _ ->
                     val authorized = authorizedKeysManager.isAuthorized(key)
                     if (authorized) {
@@ -82,19 +91,43 @@ class SshServerEngine {
                     authorized
                 }
 
-                // Shell
                 shellFactory = AndroidShellFactory()
-
-                // Exec commands (ssh-copy-id, scp, etc.)
                 commandFactory = AndroidCommandFactory()
-
-                // SFTP
                 subsystemFactories = listOf(SftpSubsystemFactory())
-
-                // Port forwarding
                 forwardingFilter = AcceptAllForwardingFilter.INSTANCE
 
-                // Forwarding event listener
+                // Session listener for tracking active connections
+                addSessionListener(object : SessionListener {
+                    override fun sessionCreated(session: Session) {
+                        val remote = session.ioSession?.remoteAddress?.toString() ?: "unknown"
+                        log.info("Session created from {}", remote)
+                    }
+
+                    override fun sessionEvent(session: Session, event: SessionListener.Event) {
+                        if (event == SessionListener.Event.Authenticated) {
+                            val remote = session.ioSession?.remoteAddress?.toString()?.removePrefix("/") ?: "unknown"
+                            val user = if (session is ServerSession) {
+                                session.username ?: "unknown"
+                            } else "unknown"
+                            val info = SessionInfo(remote, user)
+                            _activeSessions.add(info)
+                            log.info("Session authenticated: {} from {}", user, remote)
+                            onSessionsChanged?.invoke(_activeSessions)
+                            listeners.forEach { it.onClientConnected(remote) }
+                        }
+                    }
+
+                    override fun sessionClosed(session: Session) {
+                        val remote = session.ioSession?.remoteAddress?.toString()?.removePrefix("/") ?: "unknown"
+                        val user = if (session is ServerSession) {
+                            session.username ?: "unknown"
+                        } else "unknown"
+                        _activeSessions.removeIf { it.remoteAddress == remote && it.username == user }
+                        log.info("Session closed: {} from {}", user, remote)
+                        onSessionsChanged?.invoke(_activeSessions)
+                    }
+                })
+
                 addPortForwardingEventListener(object : PortForwardingEventListener {
                     override fun establishedExplicitTunnel(
                         session: Session?,
@@ -119,6 +152,7 @@ class SshServerEngine {
 
             server.start()
             sshd = server
+            _activeSessions.clear()
             log.info("SSH server started on port {}", port)
             listeners.forEach { it.onServerStarted(port) }
         } catch (e: Exception) {
@@ -135,6 +169,8 @@ class SshServerEngine {
             log.error("Error stopping SSH server", e)
         } finally {
             sshd = null
+            _activeSessions.clear()
+            onSessionsChanged?.invoke(_activeSessions)
             log.info("SSH server stopped")
             listeners.forEach { it.onServerStopped() }
         }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -30,7 +31,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.ssh.relay.engine.SessionInfo
 import com.ssh.relay.service.SshServerService
+import java.text.SimpleDateFormat
+import java.util.*
 
 private const val PREFS_NAME = "ssh_server_prefs"
 private const val KEY_PORT = "port"
@@ -43,13 +47,11 @@ fun ServerScreen() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
-    // Check battery optimization status
     val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     var isBatteryOptimized by remember {
         mutableStateOf(!pm.isIgnoringBatteryOptimizations(context.packageName))
     }
 
-    // Priority: running service state > saved prefs > defaults
     var isRunning by remember { mutableStateOf(SshServerService.isRunning) }
     var port by remember { mutableStateOf(
         when {
@@ -80,11 +82,23 @@ fun ServerScreen() {
         } else "Server stopped"
     ) }
 
+    // Poll active sessions every second when running
+    var sessions by remember { mutableStateOf<Set<SessionInfo>>(emptySet()) }
+    LaunchedEffect(isRunning) {
+        if (isRunning) {
+            while (true) {
+                sessions = SshServerService.activeSessions
+                kotlinx.coroutines.delay(1000)
+            }
+        } else {
+            sessions = emptySet()
+        }
+    }
+
     val notifLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* granted or denied */ }
 
-    // Launcher for battery optimization settings - refresh state on return
     val batterySettingsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
@@ -96,7 +110,7 @@ fun ServerScreen() {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("SSH Server", style = MaterialTheme.typography.headlineMedium)
 
@@ -124,33 +138,27 @@ fun ServerScreen() {
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "后台运行可能被系统终止。请点击下方按钮关闭电池优化，并在系统设置中允许后台运行。",
+                        "后台运行可能被系统终止。请关闭电池优化并允许后台运行。",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                // Request ignore battery optimizations directly
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = Uri.parse("package:${context.packageName}")
-                                }
-                                batterySettingsLauncher.launch(intent)
+                        OutlinedButton(onClick = {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:${context.packageName}")
                             }
-                        ) {
+                            batterySettingsLauncher.launch(intent)
+                        }) {
                             Icon(Icons.Default.BatteryAlert, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("关闭电池优化")
                         }
-                        OutlinedButton(
-                            onClick = {
-                                // Open app detail settings for manual background permission
-                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = Uri.parse("package:${context.packageName}")
-                                }
-                                batterySettingsLauncher.launch(intent)
+                        OutlinedButton(onClick = {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:${context.packageName}")
                             }
-                        ) {
+                            batterySettingsLauncher.launch(intent)
+                        }) {
                             Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("应用设置")
@@ -175,6 +183,62 @@ fun ServerScreen() {
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(statusText, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+
+        // Active sessions card (only show when running)
+        if (isRunning) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Active Sessions: ${sessions.size}",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                    if (sessions.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        val dateFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+                        sessions.forEach { session ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "${session.username}@${session.remoteAddress}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    dateFormat.format(Date(session.connectedAt)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                    } else {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "No active connections",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                        )
+                    }
+                }
             }
         }
 
@@ -231,15 +295,14 @@ fun ServerScreen() {
                     SshServerService.stop(context)
                     isRunning = false
                     statusText = "Server stopped"
+                    sessions = emptySet()
                 } else {
-                    // Save settings
                     prefs.edit()
                         .putString(KEY_PORT, port)
                         .putString(KEY_USERNAME, username)
                         .putString(KEY_PASSWORD, password)
                         .apply()
 
-                    // Request notification permission
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                             != PackageManager.PERMISSION_GRANTED
@@ -248,7 +311,6 @@ fun ServerScreen() {
                         }
                     }
 
-                    // Request ignore battery optimizations if not already
                     if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
                         try {
                             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
