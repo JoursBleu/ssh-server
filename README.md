@@ -26,6 +26,7 @@ Android SSH 服务器应用，把手机变成移动的服务器/跳板机。
 - **端口冲突恢复** — 启动时自动检测并释放残留的端口占用
 - **会话追踪** — 实时显示活跃 SSH 会话，内置 keepalive
 - **可配置 Shell** — 自定义 Home 目录和 Shell 路径（支持 Termux Shell）
+- **登录初始化脚本** — 可选加载用户指定的脚本，保留交互式终端；见[配置说明](docs/shell-startup.md)
 - **中英文切换** — 运行时中英文界面即时切换
 - **设置页面** — Shell 配置、开机自启、语言切换、应用信息
 - **干净卸载** — 卸载时自动清除所有数据（密钥、配置、authorized_keys）
@@ -149,6 +150,7 @@ app/src/main/java/com/ssh/relay/
 - **Port Conflict Recovery** — Auto-detects and releases stale port bindings on startup
 - **Session Tracking** — Real-time display of active SSH sessions with keepalive
 - **Configurable Shell** — Custom home directory and shell path (supports Termux shells)
+- **Shell startup script** — Optionally source a user-selected file; see [configuration](docs/shell-startup.md)
 - **i18n** — Chinese / English UI with runtime language switching
 - **Settings** — Shell config, boot auto-start, language switch, app info
 - **Clean Uninstall** — All data (keys, settings, authorized_keys) removed on uninstall

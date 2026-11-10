@@ -129,8 +129,9 @@ class AndroidShellCommand : Command {
             val ptyOut = java.io.FileOutputStream(pfd.fileDescriptor)
 
             // Send initial cd command to set working directory
-            val cdCmd = "cd '$home' 2>/dev/null\n"
-            ptyOut.write(cdCmd.toByteArray())
+            val initialization = "cd ${ShellStartup.quote(home)} 2>/dev/null\n" +
+                ShellStartup.prelude(ShellStartup.configuredPath())
+            ptyOut.write(initialization.toByteArray(Charsets.UTF_8))
             ptyOut.flush()
 
             // SSH -> PTY
@@ -190,6 +191,11 @@ class AndroidShellCommand : Command {
 
         val proc = pb.start()
         process = proc
+        val initialization = ShellStartup.prelude(ShellStartup.configuredPath())
+        if (initialization.isNotEmpty()) {
+            proc.outputStream.write(initialization.toByteArray(Charsets.UTF_8))
+            proc.outputStream.flush()
+        }
         log.info("ProcessBuilder shell started in {}", home)
 
         // SSH -> Process stdin
