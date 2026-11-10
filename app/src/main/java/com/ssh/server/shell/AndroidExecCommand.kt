@@ -25,7 +25,10 @@ class AndroidExecCommand(private val command: String) : Command {
     private var sshErr: OutputStream? = null
     private var exitCallback: ExitCallback? = null
 
-    private var process: Process? = null
+    private val shellProcess = ShellProcess(
+        android.os.Process.myPid(),
+        android.os.Process::killProcess
+    )
 
     override fun setInputStream(input: InputStream) { sshIn = input }
     override fun setOutputStream(output: OutputStream) { sshOut = output }
@@ -51,7 +54,10 @@ class AndroidExecCommand(private val command: String) : Command {
 
                 log.info("Executing: {} -c '{}' (HOME={}, original='{}')", shell, actualCommand, home, command)
 
-                val pb = ProcessBuilder(shell, "-c", actualCommand)
+                val pb = ProcessBuilder(
+                    shell, "-c", ShellProcess.BOOTSTRAP,
+                    "ssh-command", shell, "-c", actualCommand
+                )
                     .redirectErrorStream(false)
                 pb.environment().apply {
                     put("HOME", appHome)  // Use app home for exec so .ssh resolves correctly
@@ -63,7 +69,7 @@ class AndroidExecCommand(private val command: String) : Command {
                 pb.directory(File(appHome))  // Working dir = app home for .ssh relative paths
 
                 val proc = pb.start()
-                process = proc
+                shellProcess.attach(proc)
 
                 // Pipe SSH stdin -> process stdin (for ssh-copy-id piping the key)
                 val stdinThread = Thread({
@@ -115,7 +121,7 @@ class AndroidExecCommand(private val command: String) : Command {
                 }, "exec-stderr").apply { isDaemon = true; start() }
 
                 // Wait for process to finish
-                val exitCode = proc.waitFor()
+                val exitCode = shellProcess.awaitExit { channel.isClosing || channel.session.isClosing }
                 // Wait for I/O threads to drain
                 stdoutThread.join(2000)
                 stderrThread.join(2000)
@@ -124,6 +130,7 @@ class AndroidExecCommand(private val command: String) : Command {
                 exitCallback?.onExit(exitCode)
 
             } catch (e: Exception) {
+                shellProcess.stop()
                 log.error("Exec failed: {}", e.message, e)
                 try {
                     sshErr?.write("Error: ${e.message}\r\n".toByteArray())
@@ -135,7 +142,7 @@ class AndroidExecCommand(private val command: String) : Command {
     }
 
     override fun destroy(channel: ChannelSession) {
-        process?.destroyForcibly()
+        shellProcess.stop()
     }
 
     companion object {
