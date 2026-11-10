@@ -65,6 +65,8 @@ fun SettingsScreen() {
     ) {
         Text(S.settings, style = MaterialTheme.typography.headlineMedium)
 
+        StorageAccessCard()
+
         // ====== Shell Settings ======
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -95,6 +95,21 @@ object S {
 
     // Settings Screen
     val settings get() = if (isZh) "设置" else "Settings"
+    val fileAccess get() = if (isZh) "文件访问" else "File access"
+    val fileAccessHint get() = if (isZh)
+        "允许通过 SSH 和 SFTP 读取、修改 Download 等共享存储中的文件。其他应用的私有数据仍不可访问。"
+    else
+        "Allow SSH and SFTP to read and modify files in shared storage, including Download. Other apps' private data stays inaccessible."
+    val fileAccessGranted get() = if (isZh) "所有文件访问：已开启" else "All-files access is enabled"
+    val fileAccessNotGranted get() = if (isZh) "所有文件访问：未开启" else "All-files access is off"
+    val grantFileAccess get() = if (isZh) "开启所有文件访问" else "Enable all-files access"
+    val manageFileAccess get() = if (isZh) "管理文件访问权限" else "Manage file access"
+    val fileAccessUnsupported get() = if (isZh)
+        "此授权方式需要 Android 11 或更高版本。"
+    else "This permission requires Android 11 or later."
+    val fileAccessSettingsUnavailable get() = if (isZh)
+        "无法打开授权页面，请在系统的特殊应用权限中查找“所有文件访问”。"
+    else "Could not open settings. Find All files access under Special app access in system settings."
     val shell get() = if (isZh) "Shell" else "Shell"
     val homeDir get() = if (isZh) "Home 目录" else "Home Directory"
     val homeDirHint get() = if (isZh) "SSH 登录后的初始工作目录" else "Initial working directory after SSH login"
