@@ -65,6 +65,12 @@ ssh -J red@<手机IP>:2222 user@目标主机
 sftp -P 2222 red@<手机IP>
 ```
 
+### 共享存储访问
+
+Android 11 及以上可在“设置 → 文件访问”打开系统授权页，手动开启“所有文件访问”。
+返回应用后会刷新授权状态；授权后 SSH/SFTP 可以读写 Download 等共享目录。
+此权限不会允许访问其他应用的私有数据。Android 8–10 会显示该授权方式不可用。
+
 ### 构建
 
 ```bash
@@ -187,6 +193,14 @@ ssh -J red@<phone-ip>:2222 user@target-host
 # SFTP
 sftp -P 2222 red@<phone-ip>
 ```
+
+### Shared storage access
+
+On Android 11 and later, open **Settings → File access** and grant **All files access**
+on the Android settings page. The displayed permission state refreshes when returning
+to the app. This enables SSH/SFTP access to shared directories such as Download;
+other apps' private data remains inaccessible. This permission flow is unavailable
+on Android 8–10.
 
 ### Build
 
