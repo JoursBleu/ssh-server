@@ -47,7 +47,8 @@ class AndroidExecCommand(private val command: String) : Command {
                 // ssh-copy-id sends commands like:
                 //   exec sh -c 'mkdir -p .ssh && cat >> .ssh/authorized_keys ...'
                 //   or: sh -c 'umask 077; ... mkdir -p .ssh && cat >> .ssh/authorized_keys'
-                val actualCommand = rewriteSshCopyIdCommand(command, sshDir.absolutePath)
+                val actualCommand = ShellStartup.prelude(ShellStartup.configuredPath()) +
+                    rewriteSshCopyIdCommand(command, sshDir.absolutePath)
 
                 log.info("Executing: {} -c '{}' (HOME={}, original='{}')", shell, actualCommand, home, command)
 

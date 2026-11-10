@@ -122,6 +122,8 @@ fun SettingsScreen() {
                         }
                     }
                 }
+
+                ShellStartupSettings()
             }
         }
 
